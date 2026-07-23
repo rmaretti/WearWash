@@ -2,16 +2,18 @@
 
 ## Current State
 
-The Android project skeleton has been created in `C:\Developer\workspace\WearWash`.
+The focused Wear & Wash MVP is implemented and verified in `C:\Developer\workspace\WearWash`.
 
 The project currently includes:
 
-- Kotlin + Jetpack Compose Android app structure
-- Room-ready data model skeleton
+- Kotlin + Jetpack Compose Android app
+- Room-backed persistence with explicit migrations and an exported schema
 - Localized strings for English, Spanish, and Brazilian Portuguese
-- Starter `ItemsScreen` with sample items and status badges
-- Domain enums for item status and washing criteria
-- Washing readiness evaluation logic
+- Complete core care cycle from registration through washing
+- Item detail, usage and wash history, and chronology-safe event deletion
+- Relational laundry basket with single, selected, and bulk washing
+- Derived washing-readiness rules with localized explanations
+- Unit, persistence, migration, Compose E2E, and physical-device E2E coverage
 - Requirements document: `CLOTHING_LAUNDRY_APP_REQUIREMENTS.md`
 
 ## Important Product Direction
@@ -41,14 +43,11 @@ The app should differentiate from Whering, Acloset, and Indyx by focusing on:
 
 ## Next Recommended Steps
 
-1. Open `C:\Developer\workspace\WearWash` in Android Studio.
-2. Let Gradle sync.
-3. Fix any SDK/plugin version issues Android Studio reports.
-4. Add a real local database builder and dependency container.
-5. Replace sample `ItemsScreen` data with Room-backed UI state.
-6. Implement Add/Edit Item form.
-7. Implement usage tracking: used today and custom date.
-8. Implement washing logic and laundry basket workflow.
+1. Complete hands-on exploratory testing and record any usability issues.
+2. Address findings without changing the verified core domain invariants.
+3. Add photos and structured lookup values for richer item registration.
+4. Add future-event preparation and reminders.
+5. Design backup/export and production release hardening.
 
 ## Environment Note
 
@@ -257,8 +256,26 @@ Verification:
 - 5 Room-backed core-cycle and regression tests
 - 2 executable migration tests
 - 1 Robolectric Compose end-to-end journey
+- 1 physical-device instrumentation journey on a Samsung SM-N950F running Android 9
 - `./gradlew.bat testDebugUnitTest :app:assembleDebug` completed successfully
 - `./gradlew.bat lintDebug` completed successfully with no errors
+- `./gradlew.bat connectedDebugAndroidTest` completed successfully with 1/1 tests passing
+- Independent review agent score: 4/5
+
+Final device-test hardening completed today:
+
+- Added a UI Automator production-path E2E test that launches `MainActivity` and uses the real Room repository
+- Verified item creation, three usage records, derived `Needs washing` state, basket addition, and `Wash all`
+- Made the test locale-independent by resolving visible labels from Android resources
+- Added keyguard handling, screen-awake protection, keyboard dismissal, and clickable-ancestor selection for Android 9 compatibility
+- Restored the device's normal screen-timeout behavior after verification
+
+Work was saved as the initial Git snapshot:
+
+```text
+48b4542 Build and verify WearWash MVP
+Author: Rogerio <rmaretti01@gmail.com>
+```
 
 Deferred from the focused MVP:
 
