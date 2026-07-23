@@ -1,0 +1,7 @@
+﻿<resources>
+    <style name="Theme.WearWash" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:navigationBarColor">#FAFBF8</item>
+        <item name="android:statusBarColor">#FAFBF8</item>
+    </style>
+</resources>
