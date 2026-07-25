@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.wearwash.app.data.local.WearWashDatabase
 import com.wearwash.app.data.local.entity.LaundryBasketEntryEntity
 import com.wearwash.app.data.local.entity.CategoryEntity
+import com.wearwash.app.data.local.entity.FutureEventEntity
 import com.wearwash.app.data.local.entity.WashableItemEntity
 import com.wearwash.app.domain.model.WashableItemStatus
 import com.wearwash.app.domain.model.WashingCriteriaType
@@ -35,7 +36,11 @@ class CoreCareCycleE2ETest {
         database = Room.inMemoryDatabaseBuilder(context, WearWashDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        repository = RoomItemRepository(database.washableItemDao(), database.categoryDao())
+        repository = RoomItemRepository(
+            database.washableItemDao(),
+            database.categoryDao(),
+            database.futureEventDao(),
+        )
     }
 
     @After
@@ -251,6 +256,48 @@ class CoreCareCycleE2ETest {
 
         repository.saveItem(testItem(now).copy(categoryId = updated.id, categoryName = "Delicates"))
         assertFalse(repository.deleteCategory(updated.id))
+    }
+
+    @Test
+    fun `future event keeps preparation state when edited and cascades when deleted`() = runTest {
+        val now = "2026-07-25T10:00:00-03:00"
+        val shirtId = repository.saveItem(testItem(now))
+        val towelId = repository.saveItem(testItem(now).copy(name = "Towel"))
+        val eventId = repository.saveFutureEvent(
+            FutureEventEntity(
+                name = "Beach weekend",
+                eventDate = "2026-07-27",
+                description = "Pack light",
+                reminderDaysBefore = 2,
+                createdAt = now,
+                updatedAt = now,
+            ),
+            setOf(shirtId, towelId),
+        )
+
+        assertEquals(1, repository.observeFutureEvents().first().size)
+        assertEquals(2, repository.observeFutureEventItems().first().size)
+
+        repository.updateEventItemPreparation(eventId, shirtId, isPrepared = true)
+        val prepared = repository.observeFutureEventItems().first()
+            .single { it.itemId == shirtId }
+        assertEquals("Prepared", prepared.status)
+        assertNotNull(prepared.preparedAt)
+
+        val savedEvent = repository.observeFutureEvents().first().single()
+        repository.saveFutureEvent(
+            savedEvent.copy(name = "Long beach weekend"),
+            setOf(shirtId),
+        )
+
+        assertEquals("Long beach weekend", repository.observeFutureEvents().first().single().name)
+        val retained = repository.observeFutureEventItems().first().single()
+        assertEquals(shirtId, retained.itemId)
+        assertEquals("Prepared", retained.status)
+
+        repository.deleteFutureEvent(eventId)
+        assertTrue(repository.observeFutureEvents().first().isEmpty())
+        assertTrue(repository.observeFutureEventItems().first().isEmpty())
     }
 
     private fun testItem(createdAt: String) = WashableItemEntity(

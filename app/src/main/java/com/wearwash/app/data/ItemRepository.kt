@@ -6,13 +6,26 @@ import com.wearwash.app.data.local.entity.UsageEventEntity
 import com.wearwash.app.data.local.entity.WashEventEntity
 import com.wearwash.app.data.local.entity.WashableItemEntity
 import com.wearwash.app.data.local.entity.CategoryEntity
+import com.wearwash.app.data.local.entity.FutureEventEntity
+import com.wearwash.app.data.local.entity.FutureEventItemEntity
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.Flow
 
 interface ItemRepository {
     fun observeCategories(): Flow<List<CategoryEntity>> = flowOf(emptyList())
+    fun observeFutureEvents(): Flow<List<FutureEventEntity>> = flowOf(emptyList())
+    fun observeFutureEventItems(): Flow<List<FutureEventItemEntity>> = flowOf(emptyList())
     suspend fun saveCategory(category: CategoryEntity): Boolean = false
     suspend fun deleteCategory(categoryId: Long): Boolean = false
+    suspend fun saveFutureEvent(event: FutureEventEntity, itemIds: Set<Long>): Long = 0
+    suspend fun deleteFutureEvent(eventId: Long) = Unit
+    suspend fun updateEventItemPreparation(
+        eventId: Long,
+        itemId: Long,
+        isPrepared: Boolean,
+        comment: String? = null,
+        wasWashed: Boolean = false,
+    ) = Unit
     fun observeActiveItems(): Flow<List<WashableItemEntity>>
     fun searchItems(query: String): Flow<List<WashableItemEntity>>
     fun observeItem(id: Long): Flow<WashableItemEntity?>
@@ -40,8 +53,14 @@ interface ItemRepository {
 class RoomItemRepository(
     private val washableItemDao: WashableItemDao,
     private val categoryDao: com.wearwash.app.data.local.dao.CategoryDao,
+    private val futureEventDao: com.wearwash.app.data.local.dao.FutureEventDao,
 ) : ItemRepository {
     override fun observeCategories(): Flow<List<CategoryEntity>> = categoryDao.observeAll()
+    override fun observeFutureEvents(): Flow<List<FutureEventEntity>> =
+        futureEventDao.observeEvents()
+
+    override fun observeFutureEventItems(): Flow<List<FutureEventItemEntity>> =
+        futureEventDao.observeEventItems()
 
     override suspend fun saveCategory(category: CategoryEntity): Boolean {
         val name = category.customName?.trim()
@@ -70,6 +89,40 @@ class RoomItemRepository(
         if (category.isPredefined || categoryDao.itemCount(categoryId) > 0) return false
         categoryDao.deleteCustom(categoryId)
         return true
+    }
+
+    override suspend fun saveFutureEvent(
+        event: FutureEventEntity,
+        itemIds: Set<Long>,
+    ): Long {
+        val now = java.time.OffsetDateTime.now().toString()
+        val existing = if (event.id == 0L) null else futureEventDao.getEvent(event.id)
+        return futureEventDao.saveEventWithItems(
+            event.copy(createdAt = existing?.createdAt ?: event.createdAt, updatedAt = now),
+            itemIds,
+            now,
+        )
+    }
+
+    override suspend fun deleteFutureEvent(eventId: Long) {
+        futureEventDao.getEvent(eventId)?.let { futureEventDao.deleteEvent(it) }
+    }
+
+    override suspend fun updateEventItemPreparation(
+        eventId: Long,
+        itemId: Long,
+        isPrepared: Boolean,
+        comment: String?,
+        wasWashed: Boolean,
+    ) {
+        futureEventDao.updatePreparation(
+            eventId = eventId,
+            itemId = itemId,
+            status = if (isPrepared) "Prepared" else "Planned",
+            preparedAt = if (isPrepared) java.time.OffsetDateTime.now().toString() else null,
+            comment = comment?.trim()?.ifBlank { null },
+            wasWashed = isPrepared && wasWashed,
+        )
     }
     override fun observeActiveItems(): Flow<List<WashableItemEntity>> =
         washableItemDao.observeActiveItems()

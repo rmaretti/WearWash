@@ -49,6 +49,24 @@ The app should differentiate from Whering, Acloset, and Indyx by focusing on:
 4. Add future-event preparation and reminders.
 5. Design backup/export and production release hardening.
 
+## 2026-07-25 Events, Filtering, and Validation Checkpoint
+
+Implemented the remaining planning and discovery slice:
+
+- Added persisted future-event CRUD using the existing Room event tables
+- Added multi-item event assignment and per-item preparation state
+- Added date-driven in-app reminders and an Events navigation badge
+- Added a visible category filter alongside item search
+- Reworked the Items page into one scrollable layout for smaller screens
+- Added Material date pickers for item, usage, wash, and event dates
+- Added localized validation for required fields, dates, prices, counts, and thresholds
+- Rejects future usage/wash dates and invalid item metadata at the ViewModel boundary
+- Added Room regression tests, validation tests, category-filter coverage, and a Compose event E2E journey
+
+Verification:
+
+- `./gradlew.bat :app:testDebugUnitTest` completed successfully with 22 tests
+
 ## Environment Note
 
 The current Codex execution session did not expose:

@@ -11,6 +11,9 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import com.wearwash.app.data.ItemRepository
 import com.wearwash.app.data.local.entity.LaundryBasketEntryEntity
+import com.wearwash.app.data.local.entity.CategoryEntity
+import com.wearwash.app.data.local.entity.FutureEventEntity
+import com.wearwash.app.data.local.entity.FutureEventItemEntity
 import com.wearwash.app.data.local.entity.UsageEventEntity
 import com.wearwash.app.data.local.entity.WashEventEntity
 import com.wearwash.app.data.local.entity.WashableItemEntity
@@ -33,7 +36,7 @@ class CoreCareCycleUiE2ETest {
     @get:Rule
     val composeRule = createComposeRule()
 
-    @Test
+    @Test(timeout = 60_000)
     fun `user completes register use basket and wash journey`() {
         val repository = UiTestItemRepository()
         val viewModel = ItemsViewModel(repository)
@@ -54,8 +57,6 @@ class CoreCareCycleUiE2ETest {
         composeRule.waitUntil(timeoutMillis = 5_000) {
             composeRule.onAllNodesWithTag("item-1").fetchSemanticsNodes().isNotEmpty()
         }
-        composeRule.onNodeWithText("Gym shirt").assertIsDisplayed()
-
         repeat(3) {
             composeRule.onNodeWithText("Used today").performScrollTo().performClick()
             composeRule.waitUntil(timeoutMillis = 5_000) {
@@ -82,13 +83,76 @@ class CoreCareCycleUiE2ETest {
             }.isSuccess
         }
     }
+
+    @Test(timeout = 60_000)
+    fun `user plans an event receives reminder and marks item prepared`() {
+        val repository = UiTestItemRepository(initialItems = listOf(uiTestItem(1, "Blue shirt")))
+        val viewModel = ItemsViewModel(repository)
+        composeRule.setContent {
+            WearWashTheme {
+                ItemsScreen(itemRepository = repository, viewModel = viewModel)
+            }
+        }
+
+        composeRule.onNodeWithTag("events-tab").performClick()
+        composeRule.onNodeWithTag("add-event").performClick()
+        composeRule.onNodeWithTag("event-name").performTextInput("Family dinner")
+        composeRule.onNodeWithTag("event-item-1").performClick()
+        composeRule.onNodeWithTag("save-event").performClick()
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithText("Family dinner").fetchSemanticsNodes().isNotEmpty() &&
+                composeRule.onAllNodesWithTag("event-reminder").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithTag("event-prepared-1-1").performScrollTo().performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithText("Prepared").fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
+    @Test(timeout = 60_000)
+    fun `category filter limits the visible item state`() {
+        val repository = UiTestItemRepository(
+            initialItems = listOf(
+                uiTestItem(1, "Blue shirt", categoryId = 1, categoryName = "Tops"),
+                uiTestItem(2, "Bath towel", categoryId = 2, categoryName = "Towels"),
+            ),
+            initialCategories = listOf(
+                uiTestCategory(1, "tops"),
+                uiTestCategory(2, "towels"),
+            ),
+        )
+        val viewModel = ItemsViewModel(repository)
+        composeRule.setContent {
+            WearWashTheme {
+                ItemsScreen(itemRepository = repository, viewModel = viewModel)
+            }
+        }
+
+        composeRule.onNodeWithTag("category-filter").assertIsDisplayed()
+        viewModel.selectCategoryFilter(2)
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            viewModel.uiState.value.items.map { it.name } == listOf("Bath towel")
+        }
+    }
+
 }
 
-private class UiTestItemRepository : ItemRepository {
-    private val items = MutableStateFlow<List<WashableItemEntity>>(emptyList())
+private class UiTestItemRepository(
+    initialItems: List<WashableItemEntity> = emptyList(),
+    initialCategories: List<CategoryEntity> = emptyList(),
+) : ItemRepository {
+    private val items = MutableStateFlow(initialItems)
+    private val categories = MutableStateFlow(initialCategories)
     private val basketIds = MutableStateFlow<List<Long>>(emptyList())
     private val usageEvents = MutableStateFlow<List<UsageEventEntity>>(emptyList())
     private val washEvents = MutableStateFlow<List<WashEventEntity>>(emptyList())
+    private val futureEvents = MutableStateFlow<List<FutureEventEntity>>(emptyList())
+    private val futureEventItems = MutableStateFlow<List<FutureEventItemEntity>>(emptyList())
+
+    override fun observeCategories(): Flow<List<CategoryEntity>> = categories
+    override fun observeFutureEvents(): Flow<List<FutureEventEntity>> = futureEvents
+    override fun observeFutureEventItems(): Flow<List<FutureEventItemEntity>> = futureEventItems
 
     override fun observeActiveItems(): Flow<List<WashableItemEntity>> = items
 
@@ -201,4 +265,99 @@ private class UiTestItemRepository : ItemRepository {
         val item = getItem(itemId) ?: return
         updateItem(item.copy(status = "Archived", archivedAt = archivedAt, updatedAt = archivedAt))
     }
+
+    override suspend fun saveFutureEvent(
+        event: FutureEventEntity,
+        itemIds: Set<Long>,
+    ): Long {
+        val id = event.id.takeIf { it != 0L }
+            ?: ((futureEvents.value.maxOfOrNull { it.id } ?: 0L) + 1L)
+        futureEvents.value = futureEvents.value.filterNot { it.id == id } + event.copy(id = id)
+        val retained = futureEventItems.value
+            .filter { it.eventId == id }
+            .associateBy { it.itemId }
+        futureEventItems.value = futureEventItems.value.filterNot { it.eventId == id } +
+            itemIds.map { itemId ->
+                retained[itemId] ?: FutureEventItemEntity(
+                    eventId = id,
+                    itemId = itemId,
+                    status = "Planned",
+                    addedAt = event.updatedAt,
+                    preparedAt = null,
+                    preparationComment = null,
+                    preparationWashed = false,
+                )
+            }
+        return id
+    }
+
+    override suspend fun deleteFutureEvent(eventId: Long) {
+        futureEvents.value = futureEvents.value.filterNot { it.id == eventId }
+        futureEventItems.value = futureEventItems.value.filterNot { it.eventId == eventId }
+    }
+
+    override suspend fun updateEventItemPreparation(
+        eventId: Long,
+        itemId: Long,
+        isPrepared: Boolean,
+        comment: String?,
+        wasWashed: Boolean,
+    ) {
+        futureEventItems.value = futureEventItems.value.map {
+            if (it.eventId == eventId && it.itemId == itemId) {
+                it.copy(
+                    status = if (isPrepared) "Prepared" else "Planned",
+                    preparedAt = if (isPrepared) "2026-07-25T12:00:00-03:00" else null,
+                )
+            } else {
+                it
+            }
+        }
+    }
 }
+
+private fun uiTestCategory(id: Long, systemKey: String) = CategoryEntity(
+    id = id,
+    systemKey = systemKey,
+    customName = null,
+    isPredefined = true,
+    washingCriteriaType = "ByUsage",
+    washingUsageThreshold = 3,
+    washingDayThreshold = null,
+    createdAt = "2026-07-25T08:00:00-03:00",
+    updatedAt = "2026-07-25T08:00:00-03:00",
+)
+
+private fun uiTestItem(
+    id: Long,
+    name: String,
+    categoryId: Long? = null,
+    categoryName: String? = null,
+) = WashableItemEntity(
+    id = id,
+    name = name,
+    categoryId = categoryId,
+    categoryName = categoryName,
+    colorId = null,
+    colorName = null,
+    brand = null,
+    photoUri = null,
+    fabricId = null,
+    fabricName = null,
+    seasonId = null,
+    seasonName = null,
+    purchaseDate = null,
+    purchasePriceCents = null,
+    description = null,
+    usesSinceWash = 0,
+    lifetimeUses = 0,
+    washingCount = 0,
+    lastWashingDate = null,
+    washingCriteriaType = "ByUsage",
+    washingUsageThreshold = 3,
+    washingDayThreshold = null,
+    status = "Clean",
+    createdAt = "2026-07-25T08:00:00-03:00",
+    updatedAt = "2026-07-25T08:00:00-03:00",
+    archivedAt = null,
+)

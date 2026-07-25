@@ -26,6 +26,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Search
@@ -38,6 +39,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -58,6 +61,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -90,6 +94,8 @@ import com.wearwash.app.domain.logic.WashingReadinessReason
 import com.wearwash.app.domain.model.WashableItemStatus
 import com.wearwash.app.domain.model.WashingCriteriaType
 import java.time.LocalDate
+import java.time.Instant
+import java.time.ZoneOffset
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -139,8 +145,10 @@ fun ItemsScreen(
             AppNavigationBar(
                 destination = uiState.destination,
                 basketCount = uiState.basketItems.size,
+                reminderCount = uiState.events.count { it.reminderDue },
                 onItems = viewModel::showItems,
                 onBasket = viewModel::showBasket,
+                onEvents = viewModel::showEvents,
             )
         },
     ) { innerPadding ->
@@ -154,6 +162,7 @@ fun ItemsScreen(
             when (uiState.destination) {
                 MainDestination.Items -> ItemsContent(uiState, viewModel)
                 MainDestination.Basket -> BasketContent(uiState, viewModel)
+                MainDestination.Events -> EventsContent(uiState, viewModel)
             }
         }
     }
@@ -205,14 +214,25 @@ fun ItemsScreen(
             onDismiss = viewModel::closeCategoryManager,
         )
     }
+    uiState.eventForm?.let { form ->
+        FutureEventEditorDialog(
+            form = form,
+            items = uiState.allItems,
+            onChange = viewModel::updateEventForm,
+            onDismiss = viewModel::closeEventEditor,
+            onSave = viewModel::saveEvent,
+        )
+    }
 }
 
 @Composable
 private fun AppNavigationBar(
     destination: MainDestination,
     basketCount: Int,
+    reminderCount: Int,
     onItems: () -> Unit,
     onBasket: () -> Unit,
+    onEvents: () -> Unit,
 ) {
     val navigationColors = NavigationBarItemDefaults.colors(
         selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -245,66 +265,95 @@ private fun AppNavigationBar(
             label = { Text(stringResource(R.string.laundry_basket_title)) },
             colors = navigationColors,
         )
+        NavigationBarItem(
+            selected = destination == MainDestination.Events,
+            onClick = onEvents,
+            modifier = Modifier.testTag("events-tab"),
+            icon = {
+                BadgedBox(
+                    badge = {
+                        if (reminderCount > 0) Badge { Text(reminderCount.toString()) }
+                    },
+                ) {
+                    Icon(Icons.Default.DateRange, contentDescription = null)
+                }
+            },
+            label = { Text(stringResource(R.string.events_title)) },
+            colors = navigationColors,
+        )
     }
 }
 
 @Composable
 private fun ItemsContent(uiState: ItemsUiState, viewModel: ItemsViewModel) {
     val needsWashCount = uiState.items.count { it.needsWashing }
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(stringResource(R.string.items_title), style = MaterialTheme.typography.headlineMedium)
-        Text(
-            "${pluralStringResource(R.plurals.wardrobe_item_count, uiState.items.size, uiState.items.size)} · " +
-                pluralStringResource(R.plurals.needs_washing_count, needsWashCount, needsWashCount),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onBackground,
-        )
-    }
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    LazyColumn(
+        contentPadding = PaddingValues(bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Button(
-            onClick = viewModel::openNewItemEditor,
-            modifier = Modifier
-                .weight(1f)
-                .testTag("add-item"),
-        ) {
-            Icon(Icons.Default.Add, contentDescription = null)
-            Spacer(Modifier.width(6.dp))
-            Text(stringResource(R.string.add_item))
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(stringResource(R.string.items_title), style = MaterialTheme.typography.headlineMedium)
+                Text(
+                    "${pluralStringResource(R.plurals.wardrobe_item_count, uiState.items.size, uiState.items.size)} · " +
+                        pluralStringResource(R.plurals.needs_washing_count, needsWashCount, needsWashCount),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onBackground,
+                )
+            }
         }
-        Button(
-            onClick = viewModel::openCategoryManager,
-            modifier = Modifier
-                .weight(1f)
-                .testTag("manage-categories"),
-        ) {
-            Icon(Icons.Default.Edit, contentDescription = null)
-            Spacer(Modifier.width(6.dp))
-            Text(stringResource(R.string.categories_title))
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Button(
+                    onClick = viewModel::openNewItemEditor,
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("add-item"),
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null)
+                    Spacer(Modifier.width(6.dp))
+                    Text(stringResource(R.string.add_item))
+                }
+                Button(
+                    onClick = viewModel::openCategoryManager,
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("manage-categories"),
+                ) {
+                    Icon(Icons.Default.Edit, contentDescription = null)
+                    Spacer(Modifier.width(6.dp))
+                    Text(stringResource(R.string.categories_title))
+                }
+            }
         }
-    }
-    OutlinedTextField(
-        value = uiState.searchQuery,
-        onValueChange = viewModel::updateSearchQuery,
-        modifier = Modifier.fillMaxWidth(),
-        singleLine = true,
-        placeholder = { Text(stringResource(R.string.search_items)) },
-        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-        shape = RoundedCornerShape(18.dp),
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedContainerColor = MaterialTheme.colorScheme.surface,
-            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-        ),
-    )
-    if (uiState.items.isEmpty()) {
-        EmptyMessage(R.string.no_items_title, R.string.no_items_body)
-    } else {
-        LazyColumn(
-            contentPadding = PaddingValues(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
+        item {
+            OutlinedTextField(
+                value = uiState.searchQuery,
+                onValueChange = viewModel::updateSearchQuery,
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                placeholder = { Text(stringResource(R.string.search_items)) },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                shape = RoundedCornerShape(18.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.surface,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                ),
+            )
+        }
+        item {
+            CategoryFilter(
+                categories = uiState.categories,
+                selectedCategoryId = uiState.selectedCategoryId,
+                onSelected = viewModel::selectCategoryFilter,
+            )
+        }
+        if (uiState.items.isEmpty()) {
+            item { EmptyMessage(R.string.no_items_title, R.string.no_items_body) }
+        } else {
             items(uiState.items, key = { it.id }) { item ->
                 ItemCard(
                     item = item,
@@ -318,6 +367,322 @@ private fun ItemsContent(uiState: ItemsUiState, viewModel: ItemsViewModel) {
             }
         }
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CategoryFilter(
+    categories: List<CategoryEntity>,
+    selectedCategoryId: Long?,
+    onSelected: (Long?) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val selectedName = categories
+        .firstOrNull { it.id == selectedCategoryId }
+        ?.let { categoryDisplayName(it) }
+        ?: stringResource(R.string.all_categories)
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = it },
+    ) {
+        OutlinedTextField(
+            value = selectedName,
+            onValueChange = {},
+            readOnly = true,
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor()
+                .testTag("category-filter"),
+            label = { Text(stringResource(R.string.filter_by_category)) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+        )
+        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            DropdownMenuItem(
+                modifier = Modifier.testTag("filter-category-all"),
+                text = { Text(stringResource(R.string.all_categories)) },
+                onClick = {
+                    onSelected(null)
+                    expanded = false
+                },
+            )
+            categories.forEach { category ->
+                DropdownMenuItem(
+                    modifier = Modifier.testTag("filter-category-${category.id}"),
+                    text = { Text(categoryDisplayName(category)) },
+                    onClick = {
+                        onSelected(category.id)
+                        expanded = false
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun EventsContent(uiState: ItemsUiState, viewModel: ItemsViewModel) {
+    val dueEvents = uiState.events.filter { it.reminderDue }
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(stringResource(R.string.events_title), style = MaterialTheme.typography.headlineMedium)
+        Text(
+            stringResource(R.string.events_subtitle),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+    Button(
+        onClick = viewModel::openNewEventEditor,
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("add-event"),
+    ) {
+        Icon(Icons.Default.Add, contentDescription = null)
+        Spacer(Modifier.width(8.dp))
+        Text(stringResource(R.string.add_event))
+    }
+    if (dueEvents.isNotEmpty()) {
+        Surface(
+            color = MaterialTheme.colorScheme.primaryContainer,
+            shape = RoundedCornerShape(18.dp),
+            modifier = Modifier.testTag("event-reminder"),
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    stringResource(R.string.event_reminder_title),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                dueEvents.forEach { event ->
+                    Text(
+                        stringResource(
+                            R.string.event_reminder_body,
+                            event.name,
+                            event.eventDate.toString(),
+                        ),
+                    )
+                }
+            }
+        }
+    }
+    if (uiState.events.isEmpty()) {
+        EmptyMessage(R.string.no_events_title, R.string.no_events_body)
+    } else {
+        LazyColumn(
+            contentPadding = PaddingValues(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            items(uiState.events, key = { "event-${it.id}" }) { event ->
+                FutureEventCard(
+                    event = event,
+                    onEdit = { viewModel.openEditEventEditor(event.id) },
+                    onDelete = { viewModel.deleteEvent(event.id) },
+                    onPrepared = { itemId, prepared ->
+                        viewModel.setEventItemPrepared(event.id, itemId, prepared)
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FutureEventCard(
+    event: FutureEventUiModel,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+    onPrepared: (Long, Boolean) -> Unit,
+) {
+    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(event.name, style = MaterialTheme.typography.titleLarge)
+                    Text(
+                        stringResource(R.string.event_date_value, event.eventDate.toString()),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                IconButton(onClick = onEdit) {
+                    Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.edit_event))
+                }
+                IconButton(onClick = onDelete) {
+                    Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete_event))
+                }
+            }
+            event.description?.let { Text(it) }
+            Text(
+                stringResource(R.string.event_reminder_lead, event.reminderDaysBefore),
+                style = MaterialTheme.typography.bodySmall,
+            )
+            if (event.items.isEmpty()) {
+                Text(stringResource(R.string.event_no_items))
+            } else {
+                event.items.forEach { eventItem ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(
+                            checked = eventItem.status == EventPreparationStatus.Prepared,
+                            onCheckedChange = {
+                                onPrepared(eventItem.item.id, it)
+                            },
+                            modifier = Modifier.testTag(
+                                "event-prepared-${event.id}-${eventItem.item.id}",
+                            ),
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(eventItem.item.name, style = MaterialTheme.typography.titleSmall)
+                            Text(
+                                stringResource(
+                                    when (eventItem.status) {
+                                        EventPreparationStatus.Planned ->
+                                            R.string.event_status_planned
+                                        EventPreparationStatus.NeedsPreparation ->
+                                            R.string.event_status_needs_preparation
+                                        EventPreparationStatus.Prepared ->
+                                            R.string.event_status_prepared
+                                    },
+                                ),
+                                color = if (
+                                    eventItem.status == EventPreparationStatus.NeedsPreparation
+                                ) {
+                                    MaterialTheme.colorScheme.error
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun FutureEventEditorDialog(
+    form: FutureEventFormState,
+    items: List<ItemUiModel>,
+    onChange: (FutureEventFormState) -> Unit,
+    onDismiss: () -> Unit,
+    onSave: () -> Unit,
+) {
+    val parsedDate = runCatching { LocalDate.parse(form.eventDate) }.getOrNull()
+    val reminderDays = form.reminderDaysBefore.toIntOrNull()
+    val valid = form.name.isNotBlank() &&
+        parsedDate?.let { !it.isBefore(LocalDate.now()) } == true &&
+        reminderDays?.let { it >= 0 } == true &&
+        form.selectedItemIds.isNotEmpty()
+    AlertDialog(
+        modifier = Modifier.testTag("event-editor"),
+        onDismissRequest = onDismiss,
+        title = {
+            Text(stringResource(if (form.id == 0L) R.string.add_event else R.string.edit_event))
+        },
+        text = {
+            LazyColumn(
+                modifier = Modifier.heightIn(max = 540.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                item {
+                    FormTextField(
+                        form.name,
+                        { onChange(form.copy(name = it)) },
+                        stringResource(R.string.event_name),
+                        testTag = "event-name",
+                    )
+                }
+                item {
+                    DateField(
+                        value = form.eventDate,
+                        onValueChange = { onChange(form.copy(eventDate = it)) },
+                        label = stringResource(R.string.event_date),
+                        isError = form.eventDate.isNotBlank() &&
+                            (parsedDate == null || parsedDate.isBefore(LocalDate.now())),
+                        errorText = stringResource(R.string.future_date_error),
+                        testTag = "event-date",
+                    )
+                }
+                item {
+                    Text(
+                        stringResource(R.string.select_event_items),
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                    if (form.selectedItemIds.isEmpty()) {
+                        Text(
+                            stringResource(R.string.select_event_items_error),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                }
+                items(
+                    items = items,
+                    key = { "event-option-${it.id}" },
+                ) { item ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(
+                            checked = item.id in form.selectedItemIds,
+                            onCheckedChange = { checked ->
+                                onChange(
+                                    form.copy(
+                                        selectedItemIds = if (checked) {
+                                            form.selectedItemIds + item.id
+                                        } else {
+                                            form.selectedItemIds - item.id
+                                        },
+                                    ),
+                                )
+                            },
+                            modifier = Modifier.testTag("event-item-${item.id}"),
+                        )
+                        Text(item.name)
+                    }
+                }
+                item {
+                    FormTextField(
+                        form.reminderDaysBefore,
+                        { onChange(form.copy(reminderDaysBefore = it)) },
+                        stringResource(R.string.reminder_days_before),
+                        keyboardType = KeyboardType.Number,
+                        testTag = "event-reminder-days",
+                        isError = reminderDays == null || reminderDays < 0,
+                        supportingText = stringResource(R.string.non_negative_number_error),
+                    )
+                }
+                item {
+                    FormTextField(
+                        form.description,
+                        { onChange(form.copy(description = it)) },
+                        stringResource(R.string.description),
+                        singleLine = false,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = onSave,
+                enabled = valid,
+                modifier = Modifier.testTag("save-event"),
+            ) {
+                Text(stringResource(R.string.save))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+        },
+    )
 }
 
 @Composable
@@ -721,10 +1086,13 @@ private fun ItemDetailDialog(
                 }
                 item { Text(stringResource(R.string.add_custom_usage), style = MaterialTheme.typography.titleSmall) }
                 item {
-                    FormTextField(
-                        usageDate,
-                        { usageDate = it },
-                        stringResource(R.string.usage_date),
+                    val parsedUsageDate = runCatching { LocalDate.parse(usageDate) }.getOrNull()
+                    DateField(
+                        value = usageDate,
+                        onValueChange = { usageDate = it },
+                        label = stringResource(R.string.usage_date),
+                        isError = parsedUsageDate == null || parsedUsageDate.isAfter(LocalDate.now()),
+                        errorText = stringResource(R.string.past_or_today_date_error),
                     )
                 }
                 item {
@@ -741,7 +1109,9 @@ private fun ItemDetailDialog(
                             onRecordUsage(usageDate, usageNotes)
                             usageNotes = ""
                         },
-                        enabled = runCatching { LocalDate.parse(usageDate) }.isSuccess,
+                        enabled = runCatching { LocalDate.parse(usageDate) }
+                            .getOrNull()
+                            ?.let { !it.isAfter(LocalDate.now()) } == true,
                     ) { Text(stringResource(R.string.record_usage)) }
                 }
                 item { Text(stringResource(R.string.usage_history), style = MaterialTheme.typography.titleSmall) }
@@ -796,10 +1166,15 @@ private fun WashDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(stringResource(R.string.items_selected, form.itemIds.size))
-                FormTextField(
-                    form.washedAt,
-                    { onChange(form.copy(washedAt = it)) },
-                    stringResource(R.string.wash_date),
+                DateField(
+                    value = form.washedAt,
+                    onValueChange = { onChange(form.copy(washedAt = it)) },
+                    label = stringResource(R.string.wash_date),
+                    isError = !validDate ||
+                        runCatching { LocalDate.parse(form.washedAt) }
+                            .getOrNull()
+                            ?.isAfter(LocalDate.now()) == true,
+                    errorText = stringResource(R.string.past_or_today_date_error),
                 )
                 FormTextField(
                     form.comment,
@@ -816,7 +1191,12 @@ private fun WashDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onSave, enabled = validDate, modifier = Modifier.testTag("confirm-wash")) {
+            TextButton(
+                onClick = onSave,
+                enabled = validDate &&
+                    !LocalDate.parse(form.washedAt).isAfter(LocalDate.now()),
+                modifier = Modifier.testTag("confirm-wash"),
+            ) {
                 Text(stringResource(R.string.mark_washed))
             }
         },
@@ -1143,14 +1523,7 @@ private fun ItemEditorDialog(
     onDismiss: () -> Unit,
     onSave: () -> Unit,
 ) {
-    val validRule = when (form.washingCriteriaType) {
-        WashingCriteriaType.ByUsage -> form.washingUsageThreshold.toIntOrNull()?.let { it > 0 } == true
-        WashingCriteriaType.ByDate -> form.washingDayThreshold.toIntOrNull()?.let { it > 0 } == true
-        WashingCriteriaType.ByUsageOrDate ->
-            form.washingUsageThreshold.toIntOrNull()?.let { it > 0 } == true &&
-                form.washingDayThreshold.toIntOrNull()?.let { it > 0 } == true
-        WashingCriteriaType.Manual -> true
-    }
+    val isValid = form.isValid()
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(if (form.id == 0L) R.string.add_item else R.string.edit_item)) },
@@ -1165,6 +1538,8 @@ private fun ItemEditorDialog(
                         { onFormChange(form.copy(name = it)) },
                         stringResource(R.string.item_name),
                         testTag = "item-name",
+                        isError = form.name.isBlank(),
+                        supportingText = stringResource(R.string.required_field_error),
                     )
                 }
                 item {
@@ -1183,6 +1558,8 @@ private fun ItemEditorDialog(
                             { onFormChange(form.copy(initialUsageCount = it)) },
                             stringResource(R.string.initial_usage_count),
                             keyboardType = KeyboardType.Number,
+                            isError = form.initialUsageCount.toIntOrNull()?.let { it >= 0 } != true,
+                            supportingText = stringResource(R.string.non_negative_number_error),
                         )
                     }
                 }
@@ -1204,7 +1581,7 @@ private fun ItemEditorDialog(
         confirmButton = {
             TextButton(
                 onClick = onSave,
-                enabled = form.name.isNotBlank() && validRule,
+                enabled = isValid,
                 modifier = Modifier.testTag("save-item"),
             ) { Text(stringResource(R.string.save)) }
         },
@@ -1221,12 +1598,16 @@ private fun WashingThresholdFields(form: ItemFormState, onFormChange: (ItemFormS
             stringResource(R.string.usage_threshold),
             keyboardType = KeyboardType.Number,
             testTag = "usage-threshold",
+            isError = form.washingUsageThreshold.toIntOrNull()?.let { it > 0 } != true,
+            supportingText = stringResource(R.string.positive_number_error),
         )
         WashingCriteriaType.ByDate -> FormTextField(
             form.washingDayThreshold,
             { onFormChange(form.copy(washingDayThreshold = it)) },
             stringResource(R.string.day_threshold),
             keyboardType = KeyboardType.Number,
+            isError = form.washingDayThreshold.toIntOrNull()?.let { it > 0 } != true,
+            supportingText = stringResource(R.string.positive_number_error),
         )
         WashingCriteriaType.ByUsageOrDate -> Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             FormTextField(
@@ -1235,6 +1616,8 @@ private fun WashingThresholdFields(form: ItemFormState, onFormChange: (ItemFormS
                 stringResource(R.string.usage_threshold),
                 Modifier.weight(1f),
                 KeyboardType.Number,
+                isError = form.washingUsageThreshold.toIntOrNull()?.let { it > 0 } != true,
+                supportingText = stringResource(R.string.positive_number_error),
             )
             FormTextField(
                 form.washingDayThreshold,
@@ -1242,6 +1625,8 @@ private fun WashingThresholdFields(form: ItemFormState, onFormChange: (ItemFormS
                 stringResource(R.string.day_threshold),
                 Modifier.weight(1f),
                 KeyboardType.Number,
+                isError = form.washingDayThreshold.toIntOrNull()?.let { it > 0 } != true,
+                supportingText = stringResource(R.string.positive_number_error),
             )
         }
         WashingCriteriaType.Manual -> Text(stringResource(R.string.manual_wash_hint))
@@ -1256,12 +1641,23 @@ private fun AdvancedItemFields(form: ItemFormState, onFormChange: (ItemFormState
         FormTextField(form.fabric, { onFormChange(form.copy(fabric = it)) }, stringResource(R.string.fabric))
         FormTextField(form.season, { onFormChange(form.copy(season = it)) }, stringResource(R.string.season))
         FormTextField(form.photoUri, { onFormChange(form.copy(photoUri = it)) }, stringResource(R.string.photo_uri))
-        FormTextField(form.purchaseDate, { onFormChange(form.copy(purchaseDate = it)) }, stringResource(R.string.purchase_date))
+        val purchaseDate = runCatching { LocalDate.parse(form.purchaseDate) }.getOrNull()
+        DateField(
+            value = form.purchaseDate,
+            onValueChange = { onFormChange(form.copy(purchaseDate = it)) },
+            label = stringResource(R.string.purchase_date),
+            isError = form.purchaseDate.isNotBlank() &&
+                (purchaseDate == null || purchaseDate.isAfter(LocalDate.now())),
+            errorText = stringResource(R.string.past_or_today_date_error),
+        )
         FormTextField(
             form.purchasePrice,
             { onFormChange(form.copy(purchasePrice = it)) },
             stringResource(R.string.purchase_price),
             keyboardType = KeyboardType.Decimal,
+            isError = form.purchasePrice.isNotBlank() &&
+                form.purchasePrice.toBigDecimalOrNull()?.let { it.signum() >= 0 } != true,
+            supportingText = stringResource(R.string.non_negative_number_error),
         )
         FormTextField(
             form.description,
@@ -1275,11 +1671,17 @@ private fun AdvancedItemFields(form: ItemFormState, onFormChange: (ItemFormState
                 { onFormChange(form.copy(initialWashingCount = it)) },
                 stringResource(R.string.initial_washing_count),
                 keyboardType = KeyboardType.Number,
+                isError = form.initialWashingCount.toIntOrNull()?.let { it >= 0 } != true,
+                supportingText = stringResource(R.string.non_negative_number_error),
             )
-            FormTextField(
-                form.lastWashingDate,
-                { onFormChange(form.copy(lastWashingDate = it)) },
-                stringResource(R.string.last_washing_date),
+            val lastWashingDate = runCatching { LocalDate.parse(form.lastWashingDate) }.getOrNull()
+            DateField(
+                value = form.lastWashingDate,
+                onValueChange = { onFormChange(form.copy(lastWashingDate = it)) },
+                label = stringResource(R.string.last_washing_date),
+                isError = form.lastWashingDate.isNotBlank() &&
+                    (lastWashingDate == null || lastWashingDate.isAfter(LocalDate.now())),
+                errorText = stringResource(R.string.past_or_today_date_error),
             )
         }
     }
@@ -1294,6 +1696,8 @@ private fun FormTextField(
     keyboardType: KeyboardType = KeyboardType.Text,
     singleLine: Boolean = true,
     testTag: String? = null,
+    isError: Boolean = false,
+    supportingText: String? = null,
 ) {
     val taggedModifier = if (testTag == null) modifier else modifier.testTag(testTag)
     OutlinedTextField(
@@ -1303,7 +1707,76 @@ private fun FormTextField(
         modifier = taggedModifier.fillMaxWidth(),
         singleLine = singleLine,
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+        isError = isError,
+        supportingText = supportingText?.let { text -> { Text(text) } },
     )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DateField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    isError: Boolean = false,
+    errorText: String? = null,
+    testTag: String? = null,
+) {
+    var showPicker by remember { mutableStateOf(false) }
+    val selectedMillis = runCatching { LocalDate.parse(value) }
+        .getOrNull()
+        ?.atStartOfDay(ZoneOffset.UTC)
+        ?.toInstant()
+        ?.toEpochMilli()
+    val taggedModifier = if (testTag == null) Modifier else Modifier.testTag(testTag)
+    OutlinedTextField(
+        value = value,
+        onValueChange = {},
+        readOnly = true,
+        label = { Text(label) },
+        modifier = taggedModifier.fillMaxWidth(),
+        trailingIcon = {
+            IconButton(onClick = { showPicker = true }) {
+                Icon(Icons.Default.DateRange, contentDescription = stringResource(R.string.choose_date))
+            }
+        },
+        isError = isError,
+        supportingText = if (isError && errorText != null) {
+            { Text(errorText) }
+        } else {
+            null
+        },
+    )
+    if (showPicker) {
+        val pickerState = rememberDatePickerState(initialSelectedDateMillis = selectedMillis)
+        DatePickerDialog(
+            onDismissRequest = { showPicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        pickerState.selectedDateMillis?.let { millis ->
+                            onValueChange(
+                                Instant.ofEpochMilli(millis)
+                                    .atZone(ZoneOffset.UTC)
+                                    .toLocalDate()
+                                    .toString(),
+                            )
+                        }
+                        showPicker = false
+                    },
+                ) {
+                    Text(stringResource(R.string.save))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPicker = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        ) {
+            DatePicker(state = pickerState)
+        }
+    }
 }
 
 @OptIn(ExperimentalLayoutApi::class)

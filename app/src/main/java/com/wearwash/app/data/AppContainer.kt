@@ -11,6 +11,10 @@ class DefaultAppContainer(context: Context) : AppContainer {
     private val database = WearWashDatabase.getDatabase(context)
 
     override val itemRepository: ItemRepository by lazy {
-        RoomItemRepository(database.washableItemDao(), database.categoryDao())
+        RoomItemRepository(
+            database.washableItemDao(),
+            database.categoryDao(),
+            database.futureEventDao(),
+        )
     }
 }

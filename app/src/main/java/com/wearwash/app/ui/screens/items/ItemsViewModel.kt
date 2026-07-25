@@ -9,6 +9,8 @@ import com.wearwash.app.data.local.entity.UsageEventEntity
 import com.wearwash.app.data.local.entity.WashEventEntity
 import com.wearwash.app.data.local.entity.WashableItemEntity
 import com.wearwash.app.data.local.entity.CategoryEntity
+import com.wearwash.app.data.local.entity.FutureEventEntity
+import com.wearwash.app.data.local.entity.FutureEventItemEntity
 import com.wearwash.app.domain.logic.WashingReadinessReason
 import com.wearwash.app.domain.logic.WashingRule
 import com.wearwash.app.domain.logic.evaluateWashingReadiness
@@ -25,11 +27,14 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-enum class MainDestination { Items, Basket }
+enum class MainDestination { Items, Basket, Events }
+
+enum class EventPreparationStatus { Planned, NeedsPreparation, Prepared }
 
 data class ItemUiModel(
     val id: Long,
@@ -111,8 +116,34 @@ data class ItemDetailUiModel(
     val washHistory: List<WashHistoryItem>,
 )
 
+data class EventItemUiModel(
+    val item: ItemUiModel,
+    val status: EventPreparationStatus,
+)
+
+data class FutureEventUiModel(
+    val id: Long,
+    val name: String,
+    val eventDate: LocalDate,
+    val description: String?,
+    val reminderDaysBefore: Int,
+    val items: List<EventItemUiModel>,
+    val reminderDue: Boolean,
+    val isPast: Boolean,
+)
+
+data class FutureEventFormState(
+    val id: Long = 0,
+    val name: String = "",
+    val eventDate: String = "",
+    val description: String = "",
+    val reminderDaysBefore: String = "1",
+    val selectedItemIds: Set<Long> = emptySet(),
+)
+
 data class ItemsUiState(
     val items: List<ItemUiModel> = emptyList(),
+    val allItems: List<ItemUiModel> = emptyList(),
     val basketItems: List<ItemUiModel> = emptyList(),
     val suggestedItems: List<ItemUiModel> = emptyList(),
     val searchQuery: String = "",
@@ -123,10 +154,14 @@ data class ItemsUiState(
     val washForm: WashFormState? = null,
     val categories: List<CategoryEntity> = emptyList(),
     val categoryManager: CategoryManagerUiState = CategoryManagerUiState(),
+    val selectedCategoryId: Long? = null,
+    val events: List<FutureEventUiModel> = emptyList(),
+    val eventForm: FutureEventFormState? = null,
 )
 
 private data class ItemsSnapshot(
     val items: List<ItemUiModel>,
+    val allItems: List<ItemUiModel>,
     val basketItems: List<ItemUiModel>,
     val suggestedItems: List<ItemUiModel>,
 )
@@ -137,6 +172,19 @@ private data class SurfaceState(
     val destination: MainDestination,
     val washForm: WashFormState?,
     val categoryManager: CategoryManagerUiState,
+    val selectedCategoryId: Long?,
+    val eventForm: FutureEventFormState?,
+)
+
+private data class SecondarySurfaceState(
+    val categoryManager: CategoryManagerUiState,
+    val selectedCategoryId: Long?,
+    val eventForm: FutureEventFormState?,
+)
+
+private data class ReferenceSnapshot(
+    val categories: List<CategoryEntity>,
+    val events: List<FutureEventUiModel>,
 )
 
 private data class EditorState(
@@ -161,8 +209,16 @@ class ItemsViewModel(
     private val washForm = MutableStateFlow<WashFormState?>(null)
     private val today = MutableStateFlow(LocalDate.now())
     private val categoryManager = MutableStateFlow(CategoryManagerUiState())
+    private val selectedCategoryId = MutableStateFlow<Long?>(null)
+    private val eventForm = MutableStateFlow<FutureEventFormState?>(null)
 
-    private val itemEntities = searchQuery.flatMapLatest(itemRepository::searchItems)
+    private val itemEntities = combine(searchQuery, selectedCategoryId) { query, categoryId ->
+        query to categoryId
+    }.flatMapLatest { (query, categoryId) ->
+        itemRepository.searchItems(query).map { items ->
+            if (categoryId == null) items else items.filter { it.categoryId == categoryId }
+        }
+    }
 
     private val itemsSnapshot = combine(
         itemEntities,
@@ -176,7 +232,15 @@ class ItemsViewModel(
         val allItems = allEntities.map { it.toUiModel(basketIdSet, currentDate) }
         val basketItems = basketEntities.map { it.toUiModel(basketIdSet, currentDate) }
         val suggestedItems = allItems.filter { it.needsWashing && !it.inBasket }
-        ItemsSnapshot(items, basketItems, suggestedItems)
+        ItemsSnapshot(items, allItems, basketItems, suggestedItems)
+    }
+
+    private val secondarySurfaceState = combine(
+        categoryManager,
+        selectedCategoryId,
+        eventForm,
+    ) { categoryState, categoryId, futureEventForm ->
+        SecondarySurfaceState(categoryState, categoryId, futureEventForm)
     }
 
     private val surfaceState = combine(
@@ -184,9 +248,57 @@ class ItemsViewModel(
         editorState,
         destination,
         washForm,
-        categoryManager,
-    ) { query, editor, target, wash, categoryState ->
-        SurfaceState(query, editor, target, wash, categoryState)
+        secondarySurfaceState,
+    ) { query, editor, target, wash, secondary ->
+        SurfaceState(
+            query,
+            editor,
+            target,
+            wash,
+            secondary.categoryManager,
+            secondary.selectedCategoryId,
+            secondary.eventForm,
+        )
+    }
+
+    private val eventSnapshot = combine(
+        itemRepository.observeFutureEvents(),
+        itemRepository.observeFutureEventItems(),
+        itemRepository.observeActiveItems(),
+        itemRepository.observeBasketItemIds(),
+        today,
+    ) { events, assignments, items, basketIds, currentDate ->
+        val itemMap = items.associateBy { it.id }
+        val basketIdSet = basketIds.toSet()
+        events.mapNotNull { event ->
+            val date = event.eventDate.toLocalDateOrNull() ?: return@mapNotNull null
+            val eventItems = assignments
+                .filter { it.eventId == event.id }
+                .mapNotNull { assignment ->
+                    val entity = itemMap[assignment.itemId] ?: return@mapNotNull null
+                    val item = entity.toUiModel(basketIdSet, currentDate)
+                    EventItemUiModel(
+                        item = item,
+                        status = when {
+                            assignment.status == EventPreparationStatus.Prepared.name ->
+                                EventPreparationStatus.Prepared
+                            item.needsWashing -> EventPreparationStatus.NeedsPreparation
+                            else -> EventPreparationStatus.Planned
+                        },
+                    )
+                }
+            FutureEventUiModel(
+                id = event.id,
+                name = event.name,
+                eventDate = date,
+                description = event.description,
+                reminderDaysBefore = event.reminderDaysBefore,
+                items = eventItems,
+                reminderDue = !date.isBefore(currentDate) &&
+                    !currentDate.isBefore(date.minusDays(event.reminderDaysBefore.toLong())),
+                isPast = date.isBefore(currentDate),
+            )
+        }
     }
 
     private val detailSnapshot: Flow<DetailSnapshot?> = selectedItemId.flatMapLatest { id ->
@@ -203,16 +315,22 @@ class ItemsViewModel(
         }
     }
 
+    private val referenceSnapshot = combine(
+        itemRepository.observeCategories(),
+        eventSnapshot,
+    ) { categories, events -> ReferenceSnapshot(categories, events) }
+
     val uiState: StateFlow<ItemsUiState> = combine(
         itemsSnapshot,
         surfaceState,
         detailSnapshot,
         today,
-        itemRepository.observeCategories(),
-    ) { snapshot, surface, detail, currentDate, categories ->
+        referenceSnapshot,
+    ) { snapshot, surface, detail, currentDate, references ->
         val basketIds = snapshot.basketItems.mapTo(mutableSetOf()) { it.id }
         ItemsUiState(
             items = snapshot.items,
+            allItems = snapshot.allItems,
             basketItems = snapshot.basketItems,
             suggestedItems = snapshot.suggestedItems,
             searchQuery = surface.query,
@@ -236,8 +354,11 @@ class ItemsViewModel(
                 )
             },
             washForm = surface.washForm,
-            categories = categories,
+            categories = references.categories,
             categoryManager = surface.categoryManager,
+            selectedCategoryId = surface.selectedCategoryId,
+            events = references.events,
+            eventForm = surface.eventForm,
         )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, ItemsUiState())
 
@@ -253,8 +374,16 @@ class ItemsViewModel(
         destination.value = MainDestination.Basket
     }
 
+    fun showEvents() {
+        destination.value = MainDestination.Events
+    }
+
     fun updateSearchQuery(query: String) {
         searchQuery.value = query
+    }
+
+    fun selectCategoryFilter(categoryId: Long?) {
+        selectedCategoryId.value = categoryId
     }
 
     fun openNewItemEditor() {
@@ -363,7 +492,7 @@ class ItemsViewModel(
 
     fun saveForm() {
         val form = editorState.value.form
-        if (form.name.isBlank() || !form.hasValidRule()) return
+        if (!form.isValid(today.value)) return
         viewModelScope.launch {
             val existingItem = form.id.takeIf { it != 0L }?.let { itemRepository.getItem(it) }
             itemRepository.saveItem(form.toEntity(existingItem))
@@ -385,6 +514,7 @@ class ItemsViewModel(
 
     fun recordUsage(itemId: Long, usedAt: String, notes: String?) {
         val date = usedAt.toLocalDateOrNull() ?: return
+        if (date.isAfter(today.value)) return
         viewModelScope.launch {
             val now = OffsetDateTime.now().toString()
             itemRepository.recordUsage(
@@ -434,6 +564,7 @@ class ItemsViewModel(
     fun saveWash() {
         val form = washForm.value ?: return
         val washedAt = form.washedAt.toLocalDateOrNull() ?: return
+        if (washedAt.isAfter(today.value)) return
         viewModelScope.launch {
             val items = form.itemIds.mapNotNull { itemRepository.getItem(it) }
             if (items.size != form.itemIds.size) return@launch
@@ -460,6 +591,63 @@ class ItemsViewModel(
             val now = OffsetDateTime.now().toString()
             itemRepository.archiveItem(itemId, now)
             closeItemDetail()
+        }
+    }
+
+    fun openNewEventEditor() {
+        eventForm.value = FutureEventFormState(eventDate = today.value.plusDays(1).toString())
+    }
+
+    fun openEditEventEditor(eventId: Long) {
+        val event = uiState.value.events.firstOrNull { it.id == eventId } ?: return
+        eventForm.value = FutureEventFormState(
+            id = event.id,
+            name = event.name,
+            eventDate = event.eventDate.toString(),
+            description = event.description.orEmpty(),
+            reminderDaysBefore = event.reminderDaysBefore.toString(),
+            selectedItemIds = event.items.mapTo(mutableSetOf()) { it.item.id },
+        )
+    }
+
+    fun updateEventForm(form: FutureEventFormState) {
+        eventForm.value = form
+    }
+
+    fun closeEventEditor() {
+        eventForm.value = null
+    }
+
+    fun saveEvent() {
+        val form = eventForm.value ?: return
+        val eventDate = form.eventDate.toLocalDateOrNull() ?: return
+        val reminderDays = form.reminderDaysBefore.toIntOrNull()?.takeIf { it >= 0 } ?: return
+        if (form.name.isBlank() || eventDate.isBefore(today.value)) return
+        viewModelScope.launch {
+            val now = OffsetDateTime.now().toString()
+            itemRepository.saveFutureEvent(
+                FutureEventEntity(
+                    id = form.id,
+                    name = form.name.trim(),
+                    eventDate = eventDate.toString(),
+                    description = form.description.trimToNull(),
+                    reminderDaysBefore = reminderDays,
+                    createdAt = now,
+                    updatedAt = now,
+                ),
+                form.selectedItemIds,
+            )
+            closeEventEditor()
+        }
+    }
+
+    fun deleteEvent(eventId: Long) {
+        viewModelScope.launch { itemRepository.deleteFutureEvent(eventId) }
+    }
+
+    fun setEventItemPrepared(eventId: Long, itemId: Long, isPrepared: Boolean) {
+        viewModelScope.launch {
+            itemRepository.updateEventItemPreparation(eventId, itemId, isPrepared)
         }
     }
 
@@ -540,6 +728,15 @@ private fun ItemFormState.hasValidRule(): Boolean = when (washingCriteriaType) {
     WashingCriteriaType.Manual -> true
 }
 
+internal fun ItemFormState.isValid(today: LocalDate = LocalDate.now()): Boolean =
+    name.isNotBlank() &&
+        hasValidRule() &&
+        purchaseDate.isBlankOrValidDate(today) &&
+        lastWashingDate.isBlankOrValidDate(today) &&
+        purchasePrice.isBlankOrNonNegativeDecimal() &&
+        initialUsageCount.isNonNegativeInt() &&
+        initialWashingCount.isNonNegativeInt()
+
 private fun CategoryFormState.hasValidRule(): Boolean = when (washingCriteriaType) {
     WashingCriteriaType.ByUsage -> washingUsageThreshold.toPositiveIntOrNull() != null
     WashingCriteriaType.ByDate -> washingDayThreshold.toPositiveIntOrNull() != null
@@ -595,3 +792,8 @@ private fun String.toPriceCentsOrNull(): Long? = toBigDecimalOrNull()
 private fun String.toLocalDateOrNull(): LocalDate? =
     runCatching { LocalDate.parse(trim()) }.getOrNull()
 private fun String.trimToNull(): String? = trim().ifBlank { null }
+private fun String.isBlankOrValidDate(today: LocalDate): Boolean =
+    isBlank() || toLocalDateOrNull()?.let { !it.isAfter(today) } == true
+private fun String.isBlankOrNonNegativeDecimal(): Boolean =
+    isBlank() || toBigDecimalOrNull()?.let { it.signum() >= 0 } == true
+private fun String.isNonNegativeInt(): Boolean = toIntOrNull()?.let { it >= 0 } == true

@@ -8,6 +8,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.wearwash.app.data.local.dao.WashableItemDao
 import com.wearwash.app.data.local.dao.CategoryDao
+import com.wearwash.app.data.local.dao.FutureEventDao
 import com.wearwash.app.data.local.entity.CategoryEntity
 import com.wearwash.app.data.local.entity.FutureEventEntity
 import com.wearwash.app.data.local.entity.FutureEventItemEntity
@@ -32,6 +33,7 @@ import com.wearwash.app.data.local.entity.WashableItemEntity
 abstract class WearWashDatabase : RoomDatabase() {
     abstract fun washableItemDao(): WashableItemDao
     abstract fun categoryDao(): CategoryDao
+    abstract fun futureEventDao(): FutureEventDao
 
     companion object {
         @Volatile
