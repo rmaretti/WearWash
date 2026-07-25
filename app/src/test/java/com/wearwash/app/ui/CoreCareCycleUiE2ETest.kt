@@ -3,9 +3,11 @@ package com.wearwash.app.ui
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import com.wearwash.app.data.ItemRepository
 import com.wearwash.app.data.local.entity.LaundryBasketEntryEntity
@@ -41,6 +43,10 @@ class CoreCareCycleUiE2ETest {
             }
         }
 
+        composeRule.onNodeWithTag("manage-categories").performClick()
+        composeRule.onNodeWithTag("category-manager").assertIsDisplayed()
+        composeRule.onNodeWithText("Close").performClick()
+
         composeRule.onNodeWithTag("add-item").performClick()
         composeRule.onNodeWithTag("item-name").performTextInput("Gym shirt")
         composeRule.onNodeWithTag("save-item").performClick()
@@ -51,10 +57,13 @@ class CoreCareCycleUiE2ETest {
         composeRule.onNodeWithText("Gym shirt").assertIsDisplayed()
 
         repeat(3) {
-            composeRule.onNodeWithText("Used today").performClick()
-            composeRule.waitForIdle()
+            composeRule.onNodeWithText("Used today").performScrollTo().performClick()
+            composeRule.waitUntil(timeoutMillis = 5_000) {
+                composeRule.onAllNodesWithText("${it + 1} uses since wash")
+                    .fetchSemanticsNodes().isNotEmpty()
+            }
         }
-        composeRule.onNodeWithText("Needs washing").assertIsDisplayed()
+        composeRule.onNodeWithText("Needs washing").performScrollTo().assertIsDisplayed()
 
         composeRule.onNodeWithTag("basket-tab").performClick()
         composeRule.onNodeWithText("Add to basket").performClick()

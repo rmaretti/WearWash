@@ -5,9 +5,14 @@ import com.wearwash.app.data.local.entity.LaundryBasketEntryEntity
 import com.wearwash.app.data.local.entity.UsageEventEntity
 import com.wearwash.app.data.local.entity.WashEventEntity
 import com.wearwash.app.data.local.entity.WashableItemEntity
+import com.wearwash.app.data.local.entity.CategoryEntity
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.Flow
 
 interface ItemRepository {
+    fun observeCategories(): Flow<List<CategoryEntity>> = flowOf(emptyList())
+    suspend fun saveCategory(category: CategoryEntity): Boolean = false
+    suspend fun deleteCategory(categoryId: Long): Boolean = false
     fun observeActiveItems(): Flow<List<WashableItemEntity>>
     fun searchItems(query: String): Flow<List<WashableItemEntity>>
     fun observeItem(id: Long): Flow<WashableItemEntity?>
@@ -34,7 +39,38 @@ interface ItemRepository {
 
 class RoomItemRepository(
     private val washableItemDao: WashableItemDao,
+    private val categoryDao: com.wearwash.app.data.local.dao.CategoryDao,
 ) : ItemRepository {
+    override fun observeCategories(): Flow<List<CategoryEntity>> = categoryDao.observeAll()
+
+    override suspend fun saveCategory(category: CategoryEntity): Boolean {
+        val name = category.customName?.trim()
+        if (
+            !category.isPredefined &&
+            (name.isNullOrBlank() || categoryDao.countCustomName(name, category.id) > 0)
+        ) return false
+        return runCatching {
+            if (category.id == 0L) categoryDao.insert(category.copy(customName = name))
+            else {
+                val existing = categoryDao.getById(category.id) ?: return false
+                categoryDao.update(
+                    category.copy(
+                        systemKey = existing.systemKey,
+                        customName = if (existing.isPredefined) null else name,
+                        isPredefined = existing.isPredefined,
+                        createdAt = existing.createdAt,
+                    ),
+                )
+            }
+        }.isSuccess
+    }
+
+    override suspend fun deleteCategory(categoryId: Long): Boolean {
+        val category = categoryDao.getById(categoryId) ?: return false
+        if (category.isPredefined || categoryDao.itemCount(categoryId) > 0) return false
+        categoryDao.deleteCustom(categoryId)
+        return true
+    }
     override fun observeActiveItems(): Flow<List<WashableItemEntity>> =
         washableItemDao.observeActiveItems()
 

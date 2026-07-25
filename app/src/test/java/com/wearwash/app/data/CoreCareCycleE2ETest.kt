@@ -5,6 +5,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.wearwash.app.data.local.WearWashDatabase
 import com.wearwash.app.data.local.entity.LaundryBasketEntryEntity
+import com.wearwash.app.data.local.entity.CategoryEntity
 import com.wearwash.app.data.local.entity.WashableItemEntity
 import com.wearwash.app.domain.model.WashableItemStatus
 import com.wearwash.app.domain.model.WashingCriteriaType
@@ -34,7 +35,7 @@ class CoreCareCycleE2ETest {
         database = Room.inMemoryDatabaseBuilder(context, WearWashDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        repository = RoomItemRepository(database.washableItemDao())
+        repository = RoomItemRepository(database.washableItemDao(), database.categoryDao())
     }
 
     @After
@@ -210,6 +211,46 @@ class CoreCareCycleE2ETest {
 
         assertTrue(repository.observeBasketItemIds().first().isEmpty())
         assertNotNull(repository.getItem(itemId)!!.archivedAt)
+    }
+
+    @Test
+    fun `custom category supports create update search and safe delete`() = runTest {
+        val now = "2026-07-25T10:00:00-03:00"
+        assertTrue(
+            repository.saveCategory(
+                CategoryEntity(
+                    customName = "Delicates",
+                    systemKey = null,
+                    isPredefined = false,
+                    washingCriteriaType = WashingCriteriaType.ByUsage.name,
+                    washingUsageThreshold = 2,
+                    washingDayThreshold = null,
+                    createdAt = now,
+                    updatedAt = now,
+                ),
+            ),
+        )
+        val category = repository.observeCategories().first().single()
+        assertEquals("Delicates", category.customName)
+        assertFalse(
+            repository.saveCategory(
+                category.copy(id = 0, customName = "delicates"),
+            ),
+        )
+
+        assertTrue(
+            repository.saveCategory(
+                category.copy(
+                    washingCriteriaType = WashingCriteriaType.ByUsageOrDate.name,
+                    washingDayThreshold = 7,
+                ),
+            ),
+        )
+        val updated = repository.observeCategories().first().single()
+        assertEquals(7, updated.washingDayThreshold)
+
+        repository.saveItem(testItem(now).copy(categoryId = updated.id, categoryName = "Delicates"))
+        assertFalse(repository.deleteCategory(updated.id))
     }
 
     private fun testItem(createdAt: String) = WashableItemEntity(

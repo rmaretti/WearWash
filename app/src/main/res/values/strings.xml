@@ -15,6 +15,32 @@
     <string name="no_items_body">Add your first washable item to start tracking wear and washing.</string>
     <string name="item_name">Name</string>
     <string name="category">Category</string>
+    <string name="select_category">Select category</string>
+    <string name="manage_categories">Manage categories</string>
+    <string name="categories_title">Categories</string>
+    <string name="search_categories">Search categories</string>
+    <string name="new_category">New category</string>
+    <string name="edit_category">Edit category</string>
+    <string name="category_name">Category name</string>
+    <string name="predefined_category">Predefined</string>
+    <string name="category_default_rule">Default washing rule</string>
+    <string name="category_rule_hint">Applied to new items when this category is selected. It can still be adjusted per item.</string>
+    <string name="category_duplicate_error">A category with this name already exists.</string>
+    <string name="category_delete_error">This category is predefined or is currently used by an item.</string>
+    <string name="no_categories_found">No categories match your search.</string>
+    <string name="delete_category">Delete category</string>
+    <string name="category_tops">Tops</string>
+    <string name="category_bottoms">Bottoms</string>
+    <string name="category_underwear">Underwear</string>
+    <string name="category_socks">Socks</string>
+    <string name="category_activewear">Activewear</string>
+    <string name="category_sleepwear">Sleepwear</string>
+    <string name="category_dresses">Dresses</string>
+    <string name="category_outerwear">Outerwear</string>
+    <string name="category_bedding">Bedding</string>
+    <string name="category_towels">Towels</string>
+    <string name="category_curtains">Curtains</string>
+    <string name="category_other">Other</string>
     <string name="color">Color</string>
     <string name="brand">Brand</string>
     <string name="fabric">Fabric</string>
@@ -41,7 +67,6 @@
     <string name="in_laundry_basket">In basket</string>
     <string name="archived">Archived</string>
     <string name="uses_since_wash">%1$d uses since wash</string>
-    <string name="details">Details</string>
     <string name="close">Close</string>
     <string name="remove">Remove</string>
     <string name="delete">Delete</string>
@@ -54,6 +79,24 @@
     <string name="in_basket_section">In the basket</string>
     <string name="suggested_section">Needs washing</string>
     <string name="basket_empty">The basket is empty.</string>
+    <string name="basket_empty_title">Your next wash starts here</string>
+    <string name="basket_empty_body">Items you add to a wash will appear here.</string>
+    <string name="basket_suggestions_hint">These items are ready for washing. Add the ones you want in your next load.</string>
+    <plurals name="basket_item_count">
+        <item quantity="one">%1$d item in basket</item>
+        <item quantity="other">%1$d items in basket</item>
+    </plurals>
+    <plurals name="wardrobe_item_count">
+        <item quantity="one">%1$d item</item>
+        <item quantity="other">%1$d items</item>
+    </plurals>
+    <plurals name="needs_washing_count">
+        <item quantity="one">%1$d needs washing</item>
+        <item quantity="other">%1$d need washing</item>
+    </plurals>
+    <string name="open_item_details">Open %1$s details</string>
+    <string name="basket_ready_title">Ready for laundry</string>
+    <string name="basket_ready_body">Select the items you want to wash, then complete the load.</string>
     <string name="no_suggestions">No items currently need washing.</string>
     <string name="readiness_usage">Usage threshold reached</string>
     <string name="readiness_date">Date threshold reached</string>

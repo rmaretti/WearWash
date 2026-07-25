@@ -283,3 +283,21 @@ Deferred from the focused MVP:
 - Photos and lookup tables
 - Cost per use and richer metadata
 - Cloud backup, partnerships, AI, and analytics
+
+## 2026-07-25 Category Management Checkpoint
+
+Implemented structured categories after hands-on UX review:
+
+- Added a Room-backed category lookup table and explicit migration from version 3 to 4
+- Preserved existing free-text category values as custom categories during migration
+- Added 12 localized predefined categories with practical default washing rules
+- Added searchable category selection to the Add/Edit Item form
+- Category selection applies its washing rule as an editable item default
+- Added category management with search, create, edit, and safe delete
+- Predefined names are localized and protected; their washing defaults remain editable
+- Custom categories retain exactly the name entered by the user
+- Added migration and repository regression tests
+
+Verification:
+
+- `testDebugUnitTest`, `assembleDebug`, and `lintDebug` completed successfully

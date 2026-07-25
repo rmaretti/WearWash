@@ -15,6 +15,32 @@
     <string name="no_items_body">Agrega tu primer artículo lavable para empezar a registrar usos y lavados.</string>
     <string name="item_name">Nombre</string>
     <string name="category">Categoría</string>
+    <string name="select_category">Seleccionar categoría</string>
+    <string name="manage_categories">Administrar categorías</string>
+    <string name="categories_title">Categorías</string>
+    <string name="search_categories">Buscar categorías</string>
+    <string name="new_category">Nueva categoría</string>
+    <string name="edit_category">Editar categoría</string>
+    <string name="category_name">Nombre de la categoría</string>
+    <string name="predefined_category">Predefinida</string>
+    <string name="category_default_rule">Regla de lavado predeterminada</string>
+    <string name="category_rule_hint">Se aplica a artículos nuevos al seleccionar esta categoría. Puede ajustarse por artículo.</string>
+    <string name="category_duplicate_error">Ya existe una categoría con este nombre.</string>
+    <string name="category_delete_error">Esta categoría es predefinida o está siendo usada por un artículo.</string>
+    <string name="no_categories_found">Ninguna categoría coincide con la búsqueda.</string>
+    <string name="delete_category">Eliminar categoría</string>
+    <string name="category_tops">Prendas superiores</string>
+    <string name="category_bottoms">Prendas inferiores</string>
+    <string name="category_underwear">Ropa interior</string>
+    <string name="category_socks">Calcetines</string>
+    <string name="category_activewear">Ropa deportiva</string>
+    <string name="category_sleepwear">Ropa de dormir</string>
+    <string name="category_dresses">Vestidos</string>
+    <string name="category_outerwear">Abrigos</string>
+    <string name="category_bedding">Ropa de cama</string>
+    <string name="category_towels">Toallas</string>
+    <string name="category_curtains">Cortinas</string>
+    <string name="category_other">Otros</string>
     <string name="color">Color</string>
     <string name="brand">Marca</string>
     <string name="fabric">Tela</string>
@@ -41,7 +67,6 @@
     <string name="in_laundry_basket">En la cesta</string>
     <string name="archived">Archivado</string>
     <string name="uses_since_wash">%1$d usos desde el lavado</string>
-    <string name="details">Detalles</string>
     <string name="close">Cerrar</string>
     <string name="remove">Quitar</string>
     <string name="delete">Eliminar</string>
@@ -54,6 +79,24 @@
     <string name="in_basket_section">En la cesta</string>
     <string name="suggested_section">Necesitan lavado</string>
     <string name="basket_empty">La cesta está vacía.</string>
+    <string name="basket_empty_title">Tu próximo lavado empieza aquí</string>
+    <string name="basket_empty_body">Los artículos que agregues a un lavado aparecerán aquí.</string>
+    <string name="basket_suggestions_hint">Estos artículos están listos para lavar. Agrega los que quieras en tu próxima carga.</string>
+    <plurals name="basket_item_count">
+        <item quantity="one">%1$d artículo en la cesta</item>
+        <item quantity="other">%1$d artículos en la cesta</item>
+    </plurals>
+    <plurals name="wardrobe_item_count">
+        <item quantity="one">%1$d artículo</item>
+        <item quantity="other">%1$d artículos</item>
+    </plurals>
+    <plurals name="needs_washing_count">
+        <item quantity="one">%1$d necesita lavado</item>
+        <item quantity="other">%1$d necesitan lavado</item>
+    </plurals>
+    <string name="open_item_details">Abrir detalles de %1$s</string>
+    <string name="basket_ready_title">Listos para lavar</string>
+    <string name="basket_ready_body">Selecciona los artículos que quieras lavar y completa la carga.</string>
     <string name="no_suggestions">Ningún artículo necesita lavado ahora.</string>
     <string name="readiness_usage">Se alcanzó el límite de usos</string>
     <string name="readiness_date">Se alcanzó el límite de días</string>

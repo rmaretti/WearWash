@@ -1,3 +1,6 @@
 ﻿<resources>
-    <color name="seed">#386A5F</color>
+    <color name="seed">#A61291</color>
+    <color name="ic_launcher_background">#E238CA</color>
+    <color name="app_background">#E238CA</color>
+    <color name="app_navigation_background">#5C174F</color>
 </resources>

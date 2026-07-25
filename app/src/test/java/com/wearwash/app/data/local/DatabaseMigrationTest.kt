@@ -114,6 +114,41 @@ class DatabaseMigrationTest {
         assertTrue(uniqueIndexFound)
     }
 
+    @Test
+    fun `migration 3 to 4 seeds predefined categories and preserves existing values`() {
+        val database = helper.writableDatabase
+        database.execSQL(
+            """
+            CREATE TABLE items (
+                id INTEGER PRIMARY KEY NOT NULL,
+                categoryId INTEGER,
+                categoryName TEXT
+            )
+            """.trimIndent(),
+        )
+        database.execSQL(
+            "INSERT INTO items(id, categoryName) VALUES (1, 'My special category')",
+        )
+
+        MIGRATION_3_4.migrate(database)
+
+        database.query("SELECT COUNT(*) FROM categories WHERE isPredefined = 1").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals(12, cursor.getInt(0))
+        }
+        database.query(
+            """
+            SELECT categories.customName
+            FROM items
+            JOIN categories ON categories.id = items.categoryId
+            WHERE items.id = 1
+            """.trimIndent(),
+        ).use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals("My special category", cursor.getString(0))
+        }
+    }
+
     private companion object {
         const val DATABASE_NAME = "wear-wash-migration-test.db"
     }

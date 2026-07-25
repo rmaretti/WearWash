@@ -8,6 +8,7 @@ import com.wearwash.app.data.local.entity.LaundryBasketEntryEntity
 import com.wearwash.app.data.local.entity.UsageEventEntity
 import com.wearwash.app.data.local.entity.WashEventEntity
 import com.wearwash.app.data.local.entity.WashableItemEntity
+import com.wearwash.app.data.local.entity.CategoryEntity
 import com.wearwash.app.domain.logic.WashingReadinessReason
 import com.wearwash.app.domain.logic.WashingRule
 import com.wearwash.app.domain.logic.evaluateWashingReadiness
@@ -46,6 +47,7 @@ data class ItemUiModel(
 
 data class ItemFormState(
     val id: Long = 0,
+    val categoryId: Long? = null,
     val name: String = "",
     val category: String = "",
     val color: String = "",
@@ -63,6 +65,24 @@ data class ItemFormState(
     val washingUsageThreshold: String = "3",
     val washingDayThreshold: String = "",
     val showAdvancedDetails: Boolean = false,
+)
+
+data class CategoryFormState(
+    val id: Long = 0,
+    val name: String = "",
+    val systemKey: String? = null,
+    val isPredefined: Boolean = false,
+    val washingCriteriaType: WashingCriteriaType = WashingCriteriaType.ByUsage,
+    val washingUsageThreshold: String = "3",
+    val washingDayThreshold: String = "",
+)
+
+data class CategoryManagerUiState(
+    val isOpen: Boolean = false,
+    val searchQuery: String = "",
+    val form: CategoryFormState? = null,
+    val hasSaveError: Boolean = false,
+    val hasDeleteError: Boolean = false,
 )
 
 data class WashFormState(
@@ -101,6 +121,8 @@ data class ItemsUiState(
     val form: ItemFormState = ItemFormState(),
     val detail: ItemDetailUiModel? = null,
     val washForm: WashFormState? = null,
+    val categories: List<CategoryEntity> = emptyList(),
+    val categoryManager: CategoryManagerUiState = CategoryManagerUiState(),
 )
 
 private data class ItemsSnapshot(
@@ -114,6 +136,7 @@ private data class SurfaceState(
     val editor: EditorState,
     val destination: MainDestination,
     val washForm: WashFormState?,
+    val categoryManager: CategoryManagerUiState,
 )
 
 private data class EditorState(
@@ -137,6 +160,7 @@ class ItemsViewModel(
     private val selectedItemId = MutableStateFlow<Long?>(null)
     private val washForm = MutableStateFlow<WashFormState?>(null)
     private val today = MutableStateFlow(LocalDate.now())
+    private val categoryManager = MutableStateFlow(CategoryManagerUiState())
 
     private val itemEntities = searchQuery.flatMapLatest(itemRepository::searchItems)
 
@@ -160,8 +184,9 @@ class ItemsViewModel(
         editorState,
         destination,
         washForm,
-    ) { query, editor, target, wash ->
-        SurfaceState(query, editor, target, wash)
+        categoryManager,
+    ) { query, editor, target, wash, categoryState ->
+        SurfaceState(query, editor, target, wash, categoryState)
     }
 
     private val detailSnapshot: Flow<DetailSnapshot?> = selectedItemId.flatMapLatest { id ->
@@ -183,7 +208,8 @@ class ItemsViewModel(
         surfaceState,
         detailSnapshot,
         today,
-    ) { snapshot, surface, detail, currentDate ->
+        itemRepository.observeCategories(),
+    ) { snapshot, surface, detail, currentDate, categories ->
         val basketIds = snapshot.basketItems.mapTo(mutableSetOf()) { it.id }
         ItemsUiState(
             items = snapshot.items,
@@ -210,6 +236,8 @@ class ItemsViewModel(
                 )
             },
             washForm = surface.washForm,
+            categories = categories,
+            categoryManager = surface.categoryManager,
         )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, ItemsUiState())
 
@@ -246,6 +274,91 @@ class ItemsViewModel(
 
     fun updateForm(form: ItemFormState) {
         editorState.update { it.copy(form = form) }
+    }
+
+    fun selectCategory(category: CategoryEntity, displayName: String) {
+        editorState.update { editor ->
+            editor.copy(
+                form = editor.form.copy(
+                    categoryId = category.id,
+                    category = displayName,
+                    washingCriteriaType = category.washingCriteriaType.toWashingCriteriaType(),
+                    washingUsageThreshold = category.washingUsageThreshold?.toString().orEmpty(),
+                    washingDayThreshold = category.washingDayThreshold?.toString().orEmpty(),
+                ),
+            )
+        }
+    }
+
+    fun openCategoryManager() {
+        categoryManager.value = CategoryManagerUiState(isOpen = true)
+    }
+
+    fun closeCategoryManager() {
+        categoryManager.value = CategoryManagerUiState()
+    }
+
+    fun updateCategorySearch(query: String) {
+        categoryManager.update { it.copy(searchQuery = query) }
+    }
+
+    fun createCategory() {
+        categoryManager.update { it.copy(form = CategoryFormState(), hasSaveError = false) }
+    }
+
+    fun editCategory(category: CategoryEntity) {
+        categoryManager.update {
+            it.copy(
+                form = CategoryFormState(
+                    id = category.id,
+                    name = category.customName.orEmpty(),
+                    systemKey = category.systemKey,
+                    isPredefined = category.isPredefined,
+                    washingCriteriaType = category.washingCriteriaType.toWashingCriteriaType(),
+                    washingUsageThreshold = category.washingUsageThreshold?.toString().orEmpty(),
+                    washingDayThreshold = category.washingDayThreshold?.toString().orEmpty(),
+                ),
+                hasSaveError = false,
+                hasDeleteError = false,
+            )
+        }
+    }
+
+    fun updateCategoryForm(form: CategoryFormState) {
+        categoryManager.update { it.copy(form = form, hasSaveError = false) }
+    }
+
+    fun cancelCategoryEdit() {
+        categoryManager.update { it.copy(form = null, hasSaveError = false) }
+    }
+
+    fun saveCategory() {
+        val form = categoryManager.value.form ?: return
+        if ((!form.isPredefined && form.name.isBlank()) || !form.hasValidRule()) return
+        viewModelScope.launch {
+            val now = OffsetDateTime.now().toString()
+            val saved = itemRepository.saveCategory(
+                CategoryEntity(
+                    id = form.id,
+                    systemKey = form.systemKey,
+                    customName = if (form.isPredefined) null else form.name.trim(),
+                    isPredefined = form.isPredefined,
+                    washingCriteriaType = form.washingCriteriaType.name,
+                    washingUsageThreshold = form.washingUsageThreshold.toPositiveIntOrNull(),
+                    washingDayThreshold = form.washingDayThreshold.toPositiveIntOrNull(),
+                    createdAt = now,
+                    updatedAt = now,
+                ),
+            )
+            categoryManager.update { it.copy(form = if (saved) null else form, hasSaveError = !saved) }
+        }
+    }
+
+    fun deleteCategory(categoryId: Long) {
+        viewModelScope.launch {
+            val deleted = itemRepository.deleteCategory(categoryId)
+            categoryManager.update { it.copy(hasDeleteError = !deleted) }
+        }
     }
 
     fun saveForm() {
@@ -397,6 +510,7 @@ private fun WashableItemEntity.readiness(today: LocalDate) = evaluateWashingRead
 
 private fun WashableItemEntity.toFormState(): ItemFormState = ItemFormState(
     id = id,
+    categoryId = categoryId,
     name = name,
     category = categoryName.orEmpty(),
     color = colorName.orEmpty(),
@@ -426,13 +540,22 @@ private fun ItemFormState.hasValidRule(): Boolean = when (washingCriteriaType) {
     WashingCriteriaType.Manual -> true
 }
 
+private fun CategoryFormState.hasValidRule(): Boolean = when (washingCriteriaType) {
+    WashingCriteriaType.ByUsage -> washingUsageThreshold.toPositiveIntOrNull() != null
+    WashingCriteriaType.ByDate -> washingDayThreshold.toPositiveIntOrNull() != null
+    WashingCriteriaType.ByUsageOrDate ->
+        washingUsageThreshold.toPositiveIntOrNull() != null &&
+            washingDayThreshold.toPositiveIntOrNull() != null
+    WashingCriteriaType.Manual -> true
+}
+
 private fun ItemFormState.toEntity(existingItem: WashableItemEntity?): WashableItemEntity {
     val now = OffsetDateTime.now().toString()
     val usesSinceWash = existingItem?.usesSinceWash ?: initialUsageCount.toNonNegativeInt()
     return WashableItemEntity(
         id = id,
         name = name.trim(),
-        categoryId = existingItem?.categoryId,
+        categoryId = categoryId,
         categoryName = category.trimToNull(),
         colorId = existingItem?.colorId,
         colorName = color.trimToNull(),
