@@ -26,6 +26,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -73,11 +74,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -126,11 +129,14 @@ fun ItemsScreen(
                         Image(
                             painter = painterResource(R.drawable.wearwash_logo),
                             contentDescription = null,
-                            modifier = Modifier.size(36.dp),
+                            modifier = Modifier.size(56.dp),
                         )
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.width(10.dp))
                         Column {
-                            Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleLarge)
+                            Text(
+                                stringResource(R.string.app_name),
+                                style = MaterialTheme.typography.displaySmall,
+                            )
                             Text(
                                 stringResource(R.string.tagline),
                                 style = MaterialTheme.typography.labelMedium,
@@ -156,7 +162,8 @@ fun ItemsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(horizontal = 16.dp),
+                .padding(horizontal = 16.dp)
+                .padding(top = 28.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             when (uiState.destination) {
@@ -218,7 +225,12 @@ fun ItemsScreen(
         FutureEventEditorDialog(
             form = form,
             items = uiState.allItems,
-            onChange = viewModel::updateEventForm,
+            onNameChange = viewModel::updateEventName,
+            onDateChange = viewModel::updateEventDate,
+            onReminderDaysChange = viewModel::updateEventReminderDays,
+            onDescriptionChange = viewModel::updateEventDescription,
+            onItemSearchChange = viewModel::updateEventItemSearch,
+            onToggleItem = viewModel::toggleEventItemSelection,
             onDismiss = viewModel::closeEventEditor,
             onSave = viewModel::saveEvent,
         )
@@ -235,18 +247,22 @@ private fun AppNavigationBar(
     onEvents: () -> Unit,
 ) {
     val navigationColors = NavigationBarItemDefaults.colors(
-        selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        selectedIconColor = Color.Black,
         selectedTextColor = Color.White,
         indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-        unselectedIconColor = Color.White.copy(alpha = 0.78f),
-        unselectedTextColor = Color.White.copy(alpha = 0.78f),
+        unselectedIconColor = Color.White.copy(alpha = 0.82f),
+        unselectedTextColor = Color.White.copy(alpha = 0.82f),
     )
     NavigationBar(containerColor = MaterialTheme.colorScheme.secondary) {
         NavigationBarItem(
             selected = destination == MainDestination.Items,
             onClick = onItems,
-            icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = null) },
-            label = { Text(stringResource(R.string.items_title)) },
+            icon = {
+                Icon(
+                    Icons.AutoMirrored.Filled.List,
+                    contentDescription = stringResource(R.string.items_title),
+                )
+            },
             colors = navigationColors,
         )
         NavigationBarItem(
@@ -259,10 +275,12 @@ private fun AppNavigationBar(
                         if (basketCount > 0) Badge { Text(basketCount.toString()) }
                     },
                 ) {
-                    Icon(Icons.Default.ShoppingCart, contentDescription = null)
+                    Icon(
+                        Icons.Default.ShoppingCart,
+                        contentDescription = stringResource(R.string.laundry_basket_title),
+                    )
                 }
             },
-            label = { Text(stringResource(R.string.laundry_basket_title)) },
             colors = navigationColors,
         )
         NavigationBarItem(
@@ -275,10 +293,12 @@ private fun AppNavigationBar(
                         if (reminderCount > 0) Badge { Text(reminderCount.toString()) }
                     },
                 ) {
-                    Icon(Icons.Default.DateRange, contentDescription = null)
+                    Icon(
+                        Icons.Default.DateRange,
+                        contentDescription = stringResource(R.string.events_title),
+                    )
                 }
             },
-            label = { Text(stringResource(R.string.events_title)) },
             colors = navigationColors,
         )
     }
@@ -287,7 +307,16 @@ private fun AppNavigationBar(
 @Composable
 private fun ItemsContent(uiState: ItemsUiState, viewModel: ItemsViewModel) {
     val needsWashCount = uiState.items.count { it.needsWashing }
+    val visibleItemIds = uiState.items.mapTo(mutableSetOf()) { it.id }
+    var selectedIds by remember { mutableStateOf(emptySet<Long>()) }
+    LaunchedEffect(visibleItemIds) {
+        selectedIds = selectedIds.intersect(visibleItemIds)
+    }
+    val selectedItems = uiState.items.filter { it.id in selectedIds }
+    val removeSelectedFromBasket =
+        selectedItems.isNotEmpty() && selectedItems.all { it.inBasket }
     LazyColumn(
+        modifier = Modifier.testTag("items-list"),
         contentPadding = PaddingValues(bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -305,28 +334,25 @@ private fun ItemsContent(uiState: ItemsUiState, viewModel: ItemsViewModel) {
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(
+                    space = 12.dp,
+                    alignment = Alignment.End,
+                ),
             ) {
-                Button(
+                PrimaryIconAction(
+                    icon = Icons.Default.Add,
+                    description = stringResource(R.string.add_item),
                     onClick = viewModel::openNewItemEditor,
                     modifier = Modifier
-                        .weight(1f)
                         .testTag("add-item"),
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = null)
-                    Spacer(Modifier.width(6.dp))
-                    Text(stringResource(R.string.add_item))
-                }
-                Button(
+                )
+                PrimaryIconAction(
+                    icon = ImageVector.vectorResource(R.drawable.ic_categories),
+                    description = stringResource(R.string.categories_title),
                     onClick = viewModel::openCategoryManager,
                     modifier = Modifier
-                        .weight(1f)
                         .testTag("manage-categories"),
-                ) {
-                    Icon(Icons.Default.Edit, contentDescription = null)
-                    Spacer(Modifier.width(6.dp))
-                    Text(stringResource(R.string.categories_title))
-                }
+                )
             }
         }
         item {
@@ -351,18 +377,64 @@ private fun ItemsContent(uiState: ItemsUiState, viewModel: ItemsViewModel) {
                 onSelected = viewModel::selectCategoryFilter,
             )
         }
+        if (selectedItems.isNotEmpty()) {
+            item {
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    shape = RoundedCornerShape(18.dp),
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(
+                            space = 10.dp,
+                            alignment = Alignment.End,
+                        ),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Badge { Text(selectedItems.size.toString()) }
+                        PrimaryIconAction(
+                            icon = Icons.Default.Check,
+                            description = stringResource(R.string.used_today),
+                            onClick = { viewModel.markItemsUsed(selectedIds) },
+                            modifier = Modifier.testTag("use-selected-items"),
+                        )
+                        PrimaryIconAction(
+                            icon = if (removeSelectedFromBasket) {
+                                Icons.Default.Delete
+                            } else {
+                                Icons.Default.ShoppingCart
+                            },
+                            description = stringResource(
+                                if (removeSelectedFromBasket) R.string.remove_from_basket
+                                else R.string.add_to_basket,
+                            ),
+                            onClick = {
+                                if (removeSelectedFromBasket) {
+                                    viewModel.removeItemsFromBasket(selectedIds)
+                                } else {
+                                    viewModel.addItemsToBasket(selectedIds, "manual")
+                                }
+                            },
+                            modifier = Modifier.testTag("basket-selected-items"),
+                        )
+                    }
+                }
+            }
+        }
         if (uiState.items.isEmpty()) {
             item { EmptyMessage(R.string.no_items_title, R.string.no_items_body) }
         } else {
             items(uiState.items, key = { it.id }) { item ->
                 ItemCard(
                     item = item,
-                    onOpen = { viewModel.openItemDetail(item.id) },
-                    onUsed = { viewModel.markItemUsed(item.id) },
-                    onBasket = {
-                        if (item.inBasket) viewModel.removeFromBasket(item.id)
-                        else viewModel.addToBasket(item.id, "manual")
+                    selected = item.id in selectedIds,
+                    onSelected = { checked ->
+                        selectedIds = if (checked) selectedIds + item.id
+                        else selectedIds - item.id
                     },
+                    onOpen = { viewModel.openItemDetail(item.id) },
                 )
             }
         }
@@ -430,15 +502,16 @@ private fun EventsContent(uiState: ItemsUiState, viewModel: ItemsViewModel) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
-    Button(
-        onClick = viewModel::openNewEventEditor,
-        modifier = Modifier
-            .fillMaxWidth()
-            .testTag("add-event"),
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.End,
     ) {
-        Icon(Icons.Default.Add, contentDescription = null)
-        Spacer(Modifier.width(8.dp))
-        Text(stringResource(R.string.add_event))
+        PrimaryIconAction(
+            icon = Icons.Default.Add,
+            description = stringResource(R.string.add_event),
+            onClick = viewModel::openNewEventEditor,
+            modifier = Modifier.testTag("add-event"),
+        )
     }
     if (dueEvents.isNotEmpty()) {
         Surface(
@@ -478,8 +551,8 @@ private fun EventsContent(uiState: ItemsUiState, viewModel: ItemsViewModel) {
                     event = event,
                     onEdit = { viewModel.openEditEventEditor(event.id) },
                     onDelete = { viewModel.deleteEvent(event.id) },
-                    onPrepared = { itemId, prepared ->
-                        viewModel.setEventItemPrepared(event.id, itemId, prepared)
+                    onUpdateBasket = { itemIds, addToBasket ->
+                        viewModel.updateEventItemsBasket(event.id, itemIds, addToBasket)
                     },
                 )
             }
@@ -488,12 +561,43 @@ private fun EventsContent(uiState: ItemsUiState, viewModel: ItemsViewModel) {
 }
 
 @Composable
+private fun PrimaryIconAction(
+    icon: ImageVector,
+    description: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    IconButton(
+        onClick = onClick,
+        modifier = modifier
+            .size(48.dp)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.primary),
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = description,
+            tint = MaterialTheme.colorScheme.onPrimary,
+            modifier = Modifier.size(24.dp),
+        )
+    }
+}
+
+@Composable
 private fun FutureEventCard(
     event: FutureEventUiModel,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
-    onPrepared: (Long, Boolean) -> Unit,
+    onUpdateBasket: (Set<Long>, Boolean) -> Unit,
 ) {
+    val eventItemIds = event.items.mapTo(mutableSetOf()) { it.id }
+    var selectedIds by remember(event.id) { mutableStateOf(emptySet<Long>()) }
+    LaunchedEffect(eventItemIds) {
+        selectedIds = selectedIds.intersect(eventItemIds)
+    }
+    val selectedItems = event.items.filter { it.id in selectedIds }
+    val removeSelectedFromBasket =
+        selectedItems.isNotEmpty() && selectedItems.all { it.inBasket }
     ElevatedCard(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -522,42 +626,63 @@ private fun FutureEventCard(
             if (event.items.isEmpty()) {
                 Text(stringResource(R.string.event_no_items))
             } else {
-                event.items.forEach { eventItem ->
+                event.items.forEach { item ->
+                    Surface(
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        shape = RoundedCornerShape(14.dp),
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 8.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Checkbox(
+                                checked = item.id in selectedIds,
+                                onCheckedChange = { checked ->
+                                    selectedIds = if (checked) selectedIds + item.id
+                                    else selectedIds - item.id
+                                },
+                                modifier = Modifier.testTag(
+                                    "event-item-select-${event.id}-${item.id}",
+                                ),
+                            )
+                            ItemMonogram(item.name)
+                            Spacer(Modifier.width(12.dp))
+                            Text(
+                                item.name,
+                                style = MaterialTheme.typography.titleSmall,
+                                modifier = Modifier.weight(1f),
+                            )
+                            StatusBadges(item)
+                        }
+                    }
+                }
+                if (selectedItems.isNotEmpty()) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(
+                            space = 10.dp,
+                            alignment = Alignment.End,
+                        ),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Checkbox(
-                            checked = eventItem.status == EventPreparationStatus.Prepared,
-                            onCheckedChange = {
-                                onPrepared(eventItem.item.id, it)
+                        Badge { Text(selectedItems.size.toString()) }
+                        PrimaryIconAction(
+                            icon = if (removeSelectedFromBasket) {
+                                Icons.Default.Delete
+                            } else {
+                                Icons.Default.ShoppingCart
                             },
-                            modifier = Modifier.testTag(
-                                "event-prepared-${event.id}-${eventItem.item.id}",
+                            description = stringResource(
+                                if (removeSelectedFromBasket) R.string.remove_from_basket
+                                else R.string.add_to_basket,
                             ),
+                            onClick = {
+                                onUpdateBasket(selectedIds, !removeSelectedFromBasket)
+                            },
+                            modifier = Modifier.testTag("add-event-items-${event.id}"),
                         )
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(eventItem.item.name, style = MaterialTheme.typography.titleSmall)
-                            Text(
-                                stringResource(
-                                    when (eventItem.status) {
-                                        EventPreparationStatus.Planned ->
-                                            R.string.event_status_planned
-                                        EventPreparationStatus.NeedsPreparation ->
-                                            R.string.event_status_needs_preparation
-                                        EventPreparationStatus.Prepared ->
-                                            R.string.event_status_prepared
-                                    },
-                                ),
-                                color = if (
-                                    eventItem.status == EventPreparationStatus.NeedsPreparation
-                                ) {
-                                    MaterialTheme.colorScheme.error
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                },
-                            )
-                        }
                     }
                 }
             }
@@ -570,16 +695,34 @@ private fun FutureEventCard(
 private fun FutureEventEditorDialog(
     form: FutureEventFormState,
     items: List<ItemUiModel>,
-    onChange: (FutureEventFormState) -> Unit,
+    onNameChange: (String) -> Unit,
+    onDateChange: (String) -> Unit,
+    onReminderDaysChange: (String) -> Unit,
+    onDescriptionChange: (String) -> Unit,
+    onItemSearchChange: (String) -> Unit,
+    onToggleItem: (Long) -> Unit,
     onDismiss: () -> Unit,
     onSave: () -> Unit,
 ) {
     val parsedDate = runCatching { LocalDate.parse(form.eventDate) }.getOrNull()
     val reminderDays = form.reminderDaysBefore.toIntOrNull()
+    val filteredItems = remember(items, form.itemSearchQuery) {
+        val query = form.itemSearchQuery.trim()
+        if (query.isBlank()) {
+            items
+        } else {
+            items.filter {
+                it.name.contains(query, ignoreCase = true) ||
+                    it.category.contains(query, ignoreCase = true) ||
+                    it.brand.orEmpty().contains(query, ignoreCase = true)
+            }
+        }
+    }
     val valid = form.name.isNotBlank() &&
         parsedDate?.let { !it.isBefore(LocalDate.now()) } == true &&
         reminderDays?.let { it >= 0 } == true &&
-        form.selectedItemIds.isNotEmpty()
+        form.selectedItemIds.isNotEmpty() &&
+        form.selectedItemIds.size <= MAX_EVENT_ITEMS
     AlertDialog(
         modifier = Modifier.testTag("event-editor"),
         onDismissRequest = onDismiss,
@@ -594,15 +737,69 @@ private fun FutureEventEditorDialog(
                 item {
                     FormTextField(
                         form.name,
-                        { onChange(form.copy(name = it)) },
+                        onNameChange,
                         stringResource(R.string.event_name),
                         testTag = "event-name",
                     )
                 }
                 item {
+                    OutlinedTextField(
+                        value = form.itemSearchQuery,
+                        onValueChange = onItemSearchChange,
+                        label = { Text(stringResource(R.string.search_event_items)) },
+                        leadingIcon = {
+                            Icon(Icons.Default.Search, contentDescription = null)
+                        },
+                        supportingText = {
+                            Text(
+                                if (form.selectedItemIds.isEmpty()) {
+                                    stringResource(R.string.select_event_items_error)
+                                } else {
+                                    stringResource(
+                                        R.string.event_item_selection_count,
+                                        form.selectedItemIds.size,
+                                        MAX_EVENT_ITEMS,
+                                    )
+                                },
+                            )
+                        },
+                        isError = form.selectedItemIds.isEmpty(),
+                        singleLine = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("event-item-search"),
+                    )
+                }
+                if (filteredItems.isEmpty()) {
+                    item {
+                        Text(
+                            stringResource(R.string.no_event_items_match),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                items(
+                    items = filteredItems,
+                    key = { "event-option-${it.id}" },
+                ) { item ->
+                    val selected = item.id in form.selectedItemIds
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(
+                            checked = selected,
+                            enabled = selected || form.selectedItemIds.size < MAX_EVENT_ITEMS,
+                            onCheckedChange = { onToggleItem(item.id) },
+                            modifier = Modifier.testTag("event-item-${item.id}"),
+                        )
+                        Text(item.name)
+                    }
+                }
+                item {
                     DateField(
                         value = form.eventDate,
-                        onValueChange = { onChange(form.copy(eventDate = it)) },
+                        onValueChange = onDateChange,
                         label = stringResource(R.string.event_date),
                         isError = form.eventDate.isNotBlank() &&
                             (parsedDate == null || parsedDate.isBefore(LocalDate.now())),
@@ -611,48 +808,9 @@ private fun FutureEventEditorDialog(
                     )
                 }
                 item {
-                    Text(
-                        stringResource(R.string.select_event_items),
-                        style = MaterialTheme.typography.labelLarge,
-                    )
-                    if (form.selectedItemIds.isEmpty()) {
-                        Text(
-                            stringResource(R.string.select_event_items_error),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error,
-                        )
-                    }
-                }
-                items(
-                    items = items,
-                    key = { "event-option-${it.id}" },
-                ) { item ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Checkbox(
-                            checked = item.id in form.selectedItemIds,
-                            onCheckedChange = { checked ->
-                                onChange(
-                                    form.copy(
-                                        selectedItemIds = if (checked) {
-                                            form.selectedItemIds + item.id
-                                        } else {
-                                            form.selectedItemIds - item.id
-                                        },
-                                    ),
-                                )
-                            },
-                            modifier = Modifier.testTag("event-item-${item.id}"),
-                        )
-                        Text(item.name)
-                    }
-                }
-                item {
                     FormTextField(
                         form.reminderDaysBefore,
-                        { onChange(form.copy(reminderDaysBefore = it)) },
+                        onReminderDaysChange,
                         stringResource(R.string.reminder_days_before),
                         keyboardType = KeyboardType.Number,
                         testTag = "event-reminder-days",
@@ -663,7 +821,7 @@ private fun FutureEventEditorDialog(
                 item {
                     FormTextField(
                         form.description,
-                        { onChange(form.copy(description = it)) },
+                        onDescriptionChange,
                         stringResource(R.string.description),
                         singleLine = false,
                     )
@@ -748,6 +906,7 @@ private fun BasketContent(uiState: ItemsUiState, viewModel: ItemsViewModel) {
         }
     }
     LazyColumn(
+        modifier = Modifier.testTag("basket-list"),
         contentPadding = PaddingValues(bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -824,16 +983,19 @@ private fun BasketContent(uiState: ItemsUiState, viewModel: ItemsViewModel) {
 @Composable
 private fun ItemCard(
     item: ItemUiModel,
+    selected: Boolean,
+    onSelected: (Boolean) -> Unit,
     onOpen: () -> Unit,
-    onUsed: () -> Unit,
-    onBasket: () -> Unit,
 ) {
     val detailDescription = stringResource(R.string.open_item_details, item.name)
     ElevatedCard(
         modifier = Modifier
             .testTag("item-${item.id}")
             .semantics { contentDescription = detailDescription },
-        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        ),
     ) {
         Column(
             modifier = Modifier
@@ -846,6 +1008,11 @@ private fun ItemCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                Checkbox(
+                    checked = selected,
+                    onCheckedChange = onSelected,
+                    modifier = Modifier.testTag("item-select-${item.id}"),
+                )
                 ItemMonogram(item.name)
                 Spacer(Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
@@ -860,22 +1027,6 @@ private fun ItemCard(
                         contentDescription = detailDescription,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = onUsed, modifier = Modifier.weight(1f)) {
-                    Text(stringResource(R.string.used_today))
-                }
-                OutlinedButton(
-                    onClick = onBasket,
-                    modifier = Modifier.weight(1f),
-                ) {
-                        Text(
-                            stringResource(
-                                if (item.inBasket) R.string.remove_from_basket
-                                else R.string.add_to_basket,
-                            ),
-                        )
                 }
             }
         }

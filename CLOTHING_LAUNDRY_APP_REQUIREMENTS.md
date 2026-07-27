@@ -492,7 +492,7 @@ History events may include:
 - Archived
 - Manual wash reason/comment
 - Assigned to future event
-- Prepared for future event
+- Added to the laundry basket from a future event
 
 History is required so users can correct mistakes and understand item activity over time.
 
@@ -516,31 +516,25 @@ Each event should include:
 - Event date
 - Optional description
 - Reminder timing, such as N days before the event
-- One or more selected items planned for the event
+- One to six selected items planned for the event
 
-The app should notify the user before the event so planned items can be sent to laundry or otherwise prepared in time.
+The event editor should let the user search active items by name, category, or brand. A maximum of six items may be selected for each event so event cards remain compact.
 
-When an event item is prepared or sent to laundry:
+The app should notify the user before the event so the selected items can be washed in time.
 
-- The item should be added to the laundry basket, if appropriate
-- The item should show an event-related badge or indicator
-- The app should record the preparation action in history
+An event should not create a separate item-preparation lifecycle. Event clothes must continue to show and use their normal item state:
 
-When the item is marked as washed/prepared for the event:
+- `Clean`, `Worn`, or `Archived`
+- Normal washing-readiness evaluation
+- Whether the item is already in the laundry basket
 
-- Item status should be reset to `Clean`
-- Usage count since last wash should reset to 0
-- Washing count should increase if the preparation involved washing
-- Last washing date should update if the preparation involved washing
-- The event preparation status for that item should be marked complete
+Each event should provide an action that adds all of its active, not-yet-added clothes to the regular laundry basket. Washing those clothes must use the existing basket workflow and have exactly the same effects as washing any other basket item:
 
-The app should distinguish between:
-
-- Planned for event
-- Needs preparation
-- Prepared for event
-
-If the item is only reserved/prepared without washing, the app should allow marking the item as prepared without increasing washing count.
+- Item status becomes `Clean`
+- Usage count since last wash resets to 0
+- Washing count increases
+- Last washing date updates
+- Basket entries are removed
 
 ## Suggested Screens
 
@@ -630,7 +624,7 @@ The first version should include:
 - Cost per use
 - Future events with selected items
 - Event reminders before the event date
-- Event preparation status per item
+- Add event clothes to the regular laundry basket
 - Local Room database
 
 Features that can come after the MVP:
@@ -709,14 +703,9 @@ Features that can come after the MVP:
 
 ### FutureEventItem
 
-- id
 - eventId
 - itemId
-- status
 - addedAt
-- preparedAt
-- preparationComment
-- preparationWashed
 
 ### Lookup Tables
 

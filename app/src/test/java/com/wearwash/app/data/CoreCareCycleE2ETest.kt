@@ -259,7 +259,7 @@ class CoreCareCycleE2ETest {
     }
 
     @Test
-    fun `future event keeps preparation state when edited and cascades when deleted`() = runTest {
+    fun `future event keeps item assignments when edited and cascades when deleted`() = runTest {
         val now = "2026-07-25T10:00:00-03:00"
         val shirtId = repository.saveItem(testItem(now))
         val towelId = repository.saveItem(testItem(now).copy(name = "Towel"))
@@ -278,12 +278,6 @@ class CoreCareCycleE2ETest {
         assertEquals(1, repository.observeFutureEvents().first().size)
         assertEquals(2, repository.observeFutureEventItems().first().size)
 
-        repository.updateEventItemPreparation(eventId, shirtId, isPrepared = true)
-        val prepared = repository.observeFutureEventItems().first()
-            .single { it.itemId == shirtId }
-        assertEquals("Prepared", prepared.status)
-        assertNotNull(prepared.preparedAt)
-
         val savedEvent = repository.observeFutureEvents().first().single()
         repository.saveFutureEvent(
             savedEvent.copy(name = "Long beach weekend"),
@@ -293,7 +287,6 @@ class CoreCareCycleE2ETest {
         assertEquals("Long beach weekend", repository.observeFutureEvents().first().single().name)
         val retained = repository.observeFutureEventItems().first().single()
         assertEquals(shirtId, retained.itemId)
-        assertEquals("Prepared", retained.status)
 
         repository.deleteFutureEvent(eventId)
         assertTrue(repository.observeFutureEvents().first().isEmpty())

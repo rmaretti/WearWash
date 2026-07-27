@@ -27,7 +27,7 @@ import com.wearwash.app.data.local.entity.WashableItemEntity
         FutureEventItemEntity::class,
         CategoryEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = true,
 )
 abstract class WearWashDatabase : RoomDatabase() {
@@ -46,7 +46,7 @@ abstract class WearWashDatabase : RoomDatabase() {
                     WearWashDatabase::class.java,
                     "wear_wash.db",
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     .addCallback(
                         object : RoomDatabase.Callback() {
                             override fun onCreate(db: SupportSQLiteDatabase) {
@@ -156,6 +156,39 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
             )
             WHERE categoryName IS NOT NULL AND TRIM(categoryName) != ''
             """.trimIndent(),
+        )
+    }
+}
+
+val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL(
+            """
+            CREATE TABLE future_event_items_new (
+                eventId INTEGER NOT NULL,
+                itemId INTEGER NOT NULL,
+                addedAt TEXT NOT NULL,
+                PRIMARY KEY(eventId, itemId),
+                FOREIGN KEY(eventId) REFERENCES future_events(id) ON UPDATE NO ACTION ON DELETE CASCADE,
+                FOREIGN KEY(itemId) REFERENCES items(id) ON UPDATE NO ACTION ON DELETE CASCADE
+            )
+            """.trimIndent(),
+        )
+        database.execSQL(
+            """
+            INSERT OR IGNORE INTO future_event_items_new(eventId, itemId, addedAt)
+            SELECT eventId, itemId, MIN(addedAt)
+            FROM future_event_items
+            GROUP BY eventId, itemId
+            """.trimIndent(),
+        )
+        database.execSQL("DROP TABLE future_event_items")
+        database.execSQL("ALTER TABLE future_event_items_new RENAME TO future_event_items")
+        database.execSQL(
+            "CREATE INDEX index_future_event_items_eventId ON future_event_items(eventId)",
+        )
+        database.execSQL(
+            "CREATE INDEX index_future_event_items_itemId ON future_event_items(itemId)",
         )
     }
 }

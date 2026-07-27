@@ -122,7 +122,7 @@
     <string name="non_negative_number_error">Digite zero ou um número positivo.</string>
     <string name="past_or_today_date_error">Escolha hoje ou uma data anterior.</string>
     <string name="future_date_error">Escolha hoje ou uma data futura.</string>
-    <string name="events_subtitle">Planeje os itens que você quer prontos para datas importantes.</string>
+    <string name="events_subtitle">Escolha roupas para os próximos eventos e siga com elas o fluxo normal de lavagem.</string>
     <string name="add_event">Adicionar evento</string>
     <string name="edit_event">Editar evento</string>
     <string name="delete_event">Excluir evento</string>
@@ -133,12 +133,14 @@
     <string name="event_reminder_lead">Lembrete: %1$d dia(s) antes</string>
     <string name="select_event_items">Selecione itens para este evento</string>
     <string name="select_event_items_error">Selecione pelo menos um item.</string>
-    <string name="event_status_planned">Planejado</string>
-    <string name="event_status_needs_preparation">Precisa de preparação</string>
-    <string name="event_status_prepared">Preparado</string>
+    <string name="event_item_selection_count">%1$d de %2$d itens selecionados</string>
+    <string name="search_event_items">Buscar roupas</string>
+    <string name="no_event_items_match">Nenhuma roupa corresponde à sua busca.</string>
+    <string name="add_event_items_to_basket">Adicionar roupas do evento ao cesto</string>
+    <string name="event_items_in_basket">As roupas do evento estão no cesto</string>
     <string name="event_no_items">Nenhum item selecionado.</string>
     <string name="event_reminder_title">Lembrete de evento próximo</string>
-    <string name="event_reminder_body">%1$s está chegando em %2$s.</string>
+    <string name="event_reminder_body">%1$s está chegando em %2$s. Adicione as roupas ao cesto a tempo de lavá-las.</string>
     <string name="no_events_title">Nenhum evento futuro</string>
     <string name="no_events_body">Adicione um evento e selecione os itens que deseja deixar prontos.</string>
 </resources>

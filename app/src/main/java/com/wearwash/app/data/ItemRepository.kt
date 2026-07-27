@@ -19,13 +19,6 @@ interface ItemRepository {
     suspend fun deleteCategory(categoryId: Long): Boolean = false
     suspend fun saveFutureEvent(event: FutureEventEntity, itemIds: Set<Long>): Long = 0
     suspend fun deleteFutureEvent(eventId: Long) = Unit
-    suspend fun updateEventItemPreparation(
-        eventId: Long,
-        itemId: Long,
-        isPrepared: Boolean,
-        comment: String? = null,
-        wasWashed: Boolean = false,
-    ) = Unit
     fun observeActiveItems(): Flow<List<WashableItemEntity>>
     fun searchItems(query: String): Flow<List<WashableItemEntity>>
     fun observeItem(id: Long): Flow<WashableItemEntity?>
@@ -108,22 +101,6 @@ class RoomItemRepository(
         futureEventDao.getEvent(eventId)?.let { futureEventDao.deleteEvent(it) }
     }
 
-    override suspend fun updateEventItemPreparation(
-        eventId: Long,
-        itemId: Long,
-        isPrepared: Boolean,
-        comment: String?,
-        wasWashed: Boolean,
-    ) {
-        futureEventDao.updatePreparation(
-            eventId = eventId,
-            itemId = itemId,
-            status = if (isPrepared) "Prepared" else "Planned",
-            preparedAt = if (isPrepared) java.time.OffsetDateTime.now().toString() else null,
-            comment = comment?.trim()?.ifBlank { null },
-            wasWashed = isPrepared && wasWashed,
-        )
-    }
     override fun observeActiveItems(): Flow<List<WashableItemEntity>> =
         washableItemDao.observeActiveItems()
 

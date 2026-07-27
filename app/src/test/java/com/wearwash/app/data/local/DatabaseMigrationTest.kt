@@ -149,6 +149,56 @@ class DatabaseMigrationTest {
         }
     }
 
+    @Test
+    fun `migration 4 to 5 removes event preparation state and deduplicates assignments`() {
+        val database = helper.writableDatabase
+        database.execSQL("CREATE TABLE items (id INTEGER PRIMARY KEY NOT NULL)")
+        database.execSQL("CREATE TABLE future_events (id INTEGER PRIMARY KEY NOT NULL)")
+        database.execSQL(
+            """
+            CREATE TABLE future_event_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                eventId INTEGER NOT NULL,
+                itemId INTEGER NOT NULL,
+                status TEXT NOT NULL,
+                addedAt TEXT NOT NULL,
+                preparedAt TEXT,
+                preparationComment TEXT,
+                preparationWashed INTEGER NOT NULL
+            )
+            """.trimIndent(),
+        )
+        database.execSQL(
+            """
+            INSERT INTO future_event_items(
+                eventId, itemId, status, addedAt, preparedAt,
+                preparationComment, preparationWashed
+            ) VALUES (3, 7, 'Prepared', '2026-07-25T10:00:00Z', NULL, NULL, 1)
+            """.trimIndent(),
+        )
+        database.execSQL(
+            """
+            INSERT INTO future_event_items(
+                eventId, itemId, status, addedAt, preparedAt,
+                preparationComment, preparationWashed
+            ) VALUES (3, 7, 'Planned', '2026-07-26T10:00:00Z', NULL, NULL, 0)
+            """.trimIndent(),
+        )
+
+        MIGRATION_4_5.migrate(database)
+
+        val columns = mutableSetOf<String>()
+        database.query("PRAGMA table_info(future_event_items)").use { cursor ->
+            val nameIndex = cursor.getColumnIndexOrThrow("name")
+            while (cursor.moveToNext()) columns += cursor.getString(nameIndex)
+        }
+        assertEquals(setOf("eventId", "itemId", "addedAt"), columns)
+        database.query("SELECT COUNT(*) FROM future_event_items").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals(1, cursor.getInt(0))
+        }
+    }
+
     private companion object {
         const val DATABASE_NAME = "wear-wash-migration-test.db"
     }

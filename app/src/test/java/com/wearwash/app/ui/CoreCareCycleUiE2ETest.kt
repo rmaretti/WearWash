@@ -1,6 +1,7 @@
 package com.wearwash.app.ui
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
@@ -8,6 +9,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import com.wearwash.app.data.ItemRepository
 import com.wearwash.app.data.local.entity.LaundryBasketEntryEntity
@@ -19,12 +21,14 @@ import com.wearwash.app.data.local.entity.WashEventEntity
 import com.wearwash.app.data.local.entity.WashableItemEntity
 import com.wearwash.app.ui.screens.items.ItemsScreen
 import com.wearwash.app.ui.screens.items.ItemsViewModel
+import com.wearwash.app.ui.screens.items.MAX_EVENT_ITEMS
 import com.wearwash.app.ui.theme.WearWashTheme
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import org.junit.Rule
+import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -55,10 +59,13 @@ class CoreCareCycleUiE2ETest {
         composeRule.onNodeWithTag("save-item").performClick()
 
         composeRule.waitUntil(timeoutMillis = 5_000) {
-            composeRule.onAllNodesWithTag("item-1").fetchSemanticsNodes().isNotEmpty()
+            repository.currentItems.any { it.id == 1L }
         }
+        composeRule.onNodeWithTag("items-list").performScrollToNode(hasTestTag("item-1"))
+        composeRule.onNodeWithTag("item-1").assertIsDisplayed()
+        composeRule.onNodeWithTag("item-select-1").performClick()
         repeat(3) {
-            composeRule.onNodeWithText("Used today").performScrollTo().performClick()
+            composeRule.onNodeWithTag("use-selected-items").performScrollTo().performClick()
             composeRule.waitUntil(timeoutMillis = 5_000) {
                 composeRule.onAllNodesWithText("${it + 1} uses since wash")
                     .fetchSemanticsNodes().isNotEmpty()
@@ -66,11 +73,13 @@ class CoreCareCycleUiE2ETest {
         }
         composeRule.onNodeWithText("Needs washing").performScrollTo().assertIsDisplayed()
 
-        composeRule.onNodeWithTag("basket-tab").performClick()
-        composeRule.onNodeWithText("Add to basket").performClick()
+        composeRule.onNodeWithTag("basket-selected-items").performScrollTo().performClick()
         composeRule.waitUntil(timeoutMillis = 5_000) {
-            composeRule.onAllNodesWithTag("basket-select-1").fetchSemanticsNodes().isNotEmpty()
+            repository.currentBasketIds == listOf(1L)
         }
+        composeRule.onNodeWithTag("basket-tab").performClick()
+        composeRule.onNodeWithTag("basket-list")
+            .performScrollToNode(hasTestTag("basket-select-1"))
 
         composeRule.onNodeWithTag("basket-select-1").performClick()
         composeRule.onNodeWithTag("wash-selected").performClick()
@@ -85,28 +94,41 @@ class CoreCareCycleUiE2ETest {
     }
 
     @Test(timeout = 60_000)
-    fun `user plans an event receives reminder and marks item prepared`() {
-        val repository = UiTestItemRepository(initialItems = listOf(uiTestItem(1, "Blue shirt")))
+    fun `user searches event clothes and adds them to the regular basket`() {
+        val repository = UiTestItemRepository(
+            initialItems = listOf(
+                uiTestItem(1, "Blue shirt"),
+                uiTestItem(2, "Red trousers"),
+            ),
+        )
         val viewModel = ItemsViewModel(repository)
         composeRule.setContent {
             WearWashTheme {
                 ItemsScreen(itemRepository = repository, viewModel = viewModel)
             }
         }
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            viewModel.uiState.value.allItems.size == 2
+        }
 
         composeRule.onNodeWithTag("events-tab").performClick()
         composeRule.onNodeWithTag("add-event").performClick()
         composeRule.onNodeWithTag("event-name").performTextInput("Family dinner")
-        composeRule.onNodeWithTag("event-item-1").performClick()
+        composeRule.onNodeWithTag("event-item-search").performScrollTo().performTextInput("Blue")
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            viewModel.currentEventForm?.itemSearchQuery == "Blue"
+        }
+        composeRule.onNodeWithTag("event-item-1").performScrollTo().performClick()
         composeRule.onNodeWithTag("save-event").performClick()
 
         composeRule.waitUntil(timeoutMillis = 5_000) {
             composeRule.onAllNodesWithText("Family dinner").fetchSemanticsNodes().isNotEmpty() &&
                 composeRule.onAllNodesWithTag("event-reminder").fetchSemanticsNodes().isNotEmpty()
         }
-        composeRule.onNodeWithTag("event-prepared-1-1").performScrollTo().performClick()
+        composeRule.onNodeWithTag("event-item-select-1-1").performScrollTo().performClick()
+        composeRule.onNodeWithTag("add-event-items-1").performScrollTo().performClick()
         composeRule.waitUntil(timeoutMillis = 5_000) {
-            composeRule.onAllNodesWithText("Prepared").fetchSemanticsNodes().isNotEmpty()
+            repository.currentBasketIds == listOf(1L)
         }
     }
 
@@ -136,6 +158,28 @@ class CoreCareCycleUiE2ETest {
         }
     }
 
+    @Test
+    fun `event form limits item selection to six`() {
+        val repository = UiTestItemRepository()
+        val viewModel = ItemsViewModel(repository)
+        composeRule.setContent {
+            WearWashTheme {
+                ItemsScreen(itemRepository = repository, viewModel = viewModel)
+            }
+        }
+        viewModel.openNewEventEditor()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            viewModel.uiState.value.eventForm != null
+        }
+        composeRule.runOnIdle {
+            (1L..7L).forEach(viewModel::toggleEventItemSelection)
+        }
+        assertEquals(
+            MAX_EVENT_ITEMS,
+            viewModel.currentEventForm?.selectedItemIds?.size,
+        )
+    }
+
 }
 
 private class UiTestItemRepository(
@@ -149,6 +193,10 @@ private class UiTestItemRepository(
     private val washEvents = MutableStateFlow<List<WashEventEntity>>(emptyList())
     private val futureEvents = MutableStateFlow<List<FutureEventEntity>>(emptyList())
     private val futureEventItems = MutableStateFlow<List<FutureEventItemEntity>>(emptyList())
+    val currentBasketIds: List<Long>
+        get() = basketIds.value
+    val currentItems: List<WashableItemEntity>
+        get() = items.value
 
     override fun observeCategories(): Flow<List<CategoryEntity>> = categories
     override fun observeFutureEvents(): Flow<List<FutureEventEntity>> = futureEvents
@@ -281,11 +329,7 @@ private class UiTestItemRepository(
                 retained[itemId] ?: FutureEventItemEntity(
                     eventId = id,
                     itemId = itemId,
-                    status = "Planned",
                     addedAt = event.updatedAt,
-                    preparedAt = null,
-                    preparationComment = null,
-                    preparationWashed = false,
                 )
             }
         return id
@@ -296,24 +340,6 @@ private class UiTestItemRepository(
         futureEventItems.value = futureEventItems.value.filterNot { it.eventId == eventId }
     }
 
-    override suspend fun updateEventItemPreparation(
-        eventId: Long,
-        itemId: Long,
-        isPrepared: Boolean,
-        comment: String?,
-        wasWashed: Boolean,
-    ) {
-        futureEventItems.value = futureEventItems.value.map {
-            if (it.eventId == eventId && it.itemId == itemId) {
-                it.copy(
-                    status = if (isPrepared) "Prepared" else "Planned",
-                    preparedAt = if (isPrepared) "2026-07-25T12:00:00-03:00" else null,
-                )
-            } else {
-                it
-            }
-        }
-    }
 }
 
 private fun uiTestCategory(id: Long, systemKey: String) = CategoryEntity(

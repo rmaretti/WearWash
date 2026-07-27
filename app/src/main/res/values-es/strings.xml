@@ -122,7 +122,7 @@
     <string name="non_negative_number_error">Introduce cero o un número positivo.</string>
     <string name="past_or_today_date_error">Elige hoy o una fecha anterior.</string>
     <string name="future_date_error">Elige hoy o una fecha futura.</string>
-    <string name="events_subtitle">Planifica las prendas que quieres tener listas para fechas importantes.</string>
+    <string name="events_subtitle">Elige prendas para próximos eventos y sigue con ellas tu flujo de lavado habitual.</string>
     <string name="add_event">Añadir evento</string>
     <string name="edit_event">Editar evento</string>
     <string name="delete_event">Eliminar evento</string>
@@ -133,12 +133,14 @@
     <string name="event_reminder_lead">Recordatorio: %1$d día(s) antes</string>
     <string name="select_event_items">Selecciona prendas para este evento</string>
     <string name="select_event_items_error">Selecciona al menos una prenda.</string>
-    <string name="event_status_planned">Planificado</string>
-    <string name="event_status_needs_preparation">Necesita preparación</string>
-    <string name="event_status_prepared">Preparado</string>
+    <string name="event_item_selection_count">%1$d de %2$d prendas seleccionadas</string>
+    <string name="search_event_items">Buscar prendas</string>
+    <string name="no_event_items_match">Ninguna prenda coincide con tu búsqueda.</string>
+    <string name="add_event_items_to_basket">Agregar prendas del evento a la cesta</string>
+    <string name="event_items_in_basket">Las prendas del evento están en la cesta</string>
     <string name="event_no_items">No hay prendas seleccionadas.</string>
     <string name="event_reminder_title">Recordatorio de evento próximo</string>
-    <string name="event_reminder_body">%1$s se acerca el %2$s.</string>
+    <string name="event_reminder_body">%1$s se acerca el %2$s. Agrega sus prendas a la cesta con tiempo para lavarlas.</string>
     <string name="no_events_title">No hay eventos futuros</string>
     <string name="no_events_body">Añade un evento y selecciona las prendas que quieres tener listas.</string>
 </resources>

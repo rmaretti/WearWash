@@ -34,7 +34,7 @@ import kotlinx.coroutines.launch
 
 enum class MainDestination { Items, Basket, Events }
 
-enum class EventPreparationStatus { Planned, NeedsPreparation, Prepared }
+const val MAX_EVENT_ITEMS = 6
 
 data class ItemUiModel(
     val id: Long,
@@ -116,18 +116,13 @@ data class ItemDetailUiModel(
     val washHistory: List<WashHistoryItem>,
 )
 
-data class EventItemUiModel(
-    val item: ItemUiModel,
-    val status: EventPreparationStatus,
-)
-
 data class FutureEventUiModel(
     val id: Long,
     val name: String,
     val eventDate: LocalDate,
     val description: String?,
     val reminderDaysBefore: Int,
-    val items: List<EventItemUiModel>,
+    val items: List<ItemUiModel>,
     val reminderDue: Boolean,
     val isPast: Boolean,
 )
@@ -139,6 +134,7 @@ data class FutureEventFormState(
     val description: String = "",
     val reminderDaysBefore: String = "1",
     val selectedItemIds: Set<Long> = emptySet(),
+    val itemSearchQuery: String = "",
 )
 
 data class ItemsUiState(
@@ -274,18 +270,10 @@ class ItemsViewModel(
             val date = event.eventDate.toLocalDateOrNull() ?: return@mapNotNull null
             val eventItems = assignments
                 .filter { it.eventId == event.id }
+                .take(MAX_EVENT_ITEMS)
                 .mapNotNull { assignment ->
                     val entity = itemMap[assignment.itemId] ?: return@mapNotNull null
-                    val item = entity.toUiModel(basketIdSet, currentDate)
-                    EventItemUiModel(
-                        item = item,
-                        status = when {
-                            assignment.status == EventPreparationStatus.Prepared.name ->
-                                EventPreparationStatus.Prepared
-                            item.needsWashing -> EventPreparationStatus.NeedsPreparation
-                            else -> EventPreparationStatus.Planned
-                        },
-                    )
+                    entity.toUiModel(basketIdSet, currentDate)
                 }
             FutureEventUiModel(
                 id = event.id,
@@ -509,7 +497,23 @@ class ItemsViewModel(
     }
 
     fun markItemUsed(itemId: Long) {
-        recordUsage(itemId, LocalDate.now().toString(), null)
+        markItemsUsed(setOf(itemId))
+    }
+
+    fun markItemsUsed(itemIds: Set<Long>) {
+        if (itemIds.isEmpty()) return
+        viewModelScope.launch {
+            val usedAt = today.value.toString()
+            val now = OffsetDateTime.now().toString()
+            itemIds.forEach { itemId ->
+                itemRepository.recordUsage(
+                    itemId = itemId,
+                    usedAt = usedAt,
+                    notes = null,
+                    createdAt = now,
+                )
+            }
+        }
     }
 
     fun recordUsage(itemId: Long, usedAt: String, notes: String?) {
@@ -533,20 +537,35 @@ class ItemsViewModel(
     }
 
     fun addToBasket(itemId: Long, reason: String? = null) {
+        addItemsToBasket(setOf(itemId), reason)
+    }
+
+    fun addItemsToBasket(itemIds: Set<Long>, reason: String? = null) {
+        if (itemIds.isEmpty()) return
         viewModelScope.launch {
-            itemRepository.addToBasket(
-                LaundryBasketEntryEntity(
-                    itemId = itemId,
-                    addedAt = OffsetDateTime.now().toString(),
-                    reason = reason,
-                    comment = null,
-                ),
-            )
+            val now = OffsetDateTime.now().toString()
+            itemIds.forEach { itemId ->
+                itemRepository.addToBasket(
+                    LaundryBasketEntryEntity(
+                        itemId = itemId,
+                        addedAt = now,
+                        reason = reason,
+                        comment = null,
+                    ),
+                )
+            }
         }
     }
 
     fun removeFromBasket(itemId: Long) {
-        viewModelScope.launch { itemRepository.removeFromBasket(itemId) }
+        removeItemsFromBasket(setOf(itemId))
+    }
+
+    fun removeItemsFromBasket(itemIds: Set<Long>) {
+        if (itemIds.isEmpty()) return
+        viewModelScope.launch {
+            itemIds.forEach { itemRepository.removeFromBasket(it) }
+        }
     }
 
     fun openWashDialog(itemIds: Set<Long>) {
@@ -606,13 +625,46 @@ class ItemsViewModel(
             eventDate = event.eventDate.toString(),
             description = event.description.orEmpty(),
             reminderDaysBefore = event.reminderDaysBefore.toString(),
-            selectedItemIds = event.items.mapTo(mutableSetOf()) { it.item.id },
+            selectedItemIds = event.items.mapTo(mutableSetOf()) { it.id },
         )
     }
 
-    fun updateEventForm(form: FutureEventFormState) {
-        eventForm.value = form
+    fun updateEventName(name: String) {
+        eventForm.update { it?.copy(name = name) }
     }
+
+    fun updateEventDate(date: String) {
+        eventForm.update { it?.copy(eventDate = date) }
+    }
+
+    fun updateEventReminderDays(days: String) {
+        eventForm.update { it?.copy(reminderDaysBefore = days) }
+    }
+
+    fun updateEventDescription(description: String) {
+        eventForm.update { it?.copy(description = description) }
+    }
+
+    fun updateEventItemSearch(query: String) {
+        eventForm.update { it?.copy(itemSearchQuery = query) }
+    }
+
+    fun toggleEventItemSelection(itemId: Long) {
+        eventForm.update { form ->
+            form?.copy(
+                selectedItemIds = if (itemId in form.selectedItemIds) {
+                    form.selectedItemIds - itemId
+                } else if (form.selectedItemIds.size < MAX_EVENT_ITEMS) {
+                    form.selectedItemIds + itemId
+                } else {
+                    form.selectedItemIds
+                },
+            )
+        }
+    }
+
+    internal val currentEventForm: FutureEventFormState?
+        get() = eventForm.value
 
     fun closeEventEditor() {
         eventForm.value = null
@@ -622,7 +674,12 @@ class ItemsViewModel(
         val form = eventForm.value ?: return
         val eventDate = form.eventDate.toLocalDateOrNull() ?: return
         val reminderDays = form.reminderDaysBefore.toIntOrNull()?.takeIf { it >= 0 } ?: return
-        if (form.name.isBlank() || eventDate.isBefore(today.value)) return
+        if (
+            form.name.isBlank() ||
+            eventDate.isBefore(today.value) ||
+            form.selectedItemIds.isEmpty() ||
+            form.selectedItemIds.size > MAX_EVENT_ITEMS
+        ) return
         viewModelScope.launch {
             val now = OffsetDateTime.now().toString()
             itemRepository.saveFutureEvent(
@@ -645,9 +702,25 @@ class ItemsViewModel(
         viewModelScope.launch { itemRepository.deleteFutureEvent(eventId) }
     }
 
-    fun setEventItemPrepared(eventId: Long, itemId: Long, isPrepared: Boolean) {
-        viewModelScope.launch {
-            itemRepository.updateEventItemPreparation(eventId, itemId, isPrepared)
+    fun updateEventItemsBasket(
+        eventId: Long,
+        selectedItemIds: Set<Long>,
+        addToBasket: Boolean,
+    ) {
+        val event = uiState.value.events.firstOrNull { it.id == eventId } ?: return
+        val validItemIds = event.items
+            .mapTo(mutableSetOf()) { it.id }
+            .intersect(selectedItemIds)
+        if (addToBasket) {
+            val idsToAdd = event.items
+                .filter { it.id in validItemIds && !it.inBasket }
+                .mapTo(mutableSetOf()) { it.id }
+            addItemsToBasket(idsToAdd, "event:$eventId")
+        } else {
+            val idsToRemove = event.items
+                .filter { it.id in validItemIds && it.inBasket }
+                .mapTo(mutableSetOf()) { it.id }
+            removeItemsFromBasket(idsToRemove)
         }
     }
 

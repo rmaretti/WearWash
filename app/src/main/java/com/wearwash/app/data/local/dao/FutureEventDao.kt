@@ -16,7 +16,7 @@ interface FutureEventDao {
     @Query("SELECT * FROM future_events ORDER BY eventDate, name")
     fun observeEvents(): Flow<List<FutureEventEntity>>
 
-    @Query("SELECT * FROM future_event_items ORDER BY eventId, id")
+    @Query("SELECT * FROM future_event_items ORDER BY eventId, itemId")
     fun observeEventItems(): Flow<List<FutureEventItemEntity>>
 
     @Query("SELECT * FROM future_event_items WHERE eventId = :eventId")
@@ -40,25 +40,6 @@ interface FutureEventDao {
     @Insert
     suspend fun insertEventItems(items: List<FutureEventItemEntity>)
 
-    @Query(
-        """
-        UPDATE future_event_items
-        SET status = :status,
-            preparedAt = :preparedAt,
-            preparationComment = :comment,
-            preparationWashed = :wasWashed
-        WHERE eventId = :eventId AND itemId = :itemId
-        """,
-    )
-    suspend fun updatePreparation(
-        eventId: Long,
-        itemId: Long,
-        status: String,
-        preparedAt: String?,
-        comment: String?,
-        wasWashed: Boolean,
-    )
-
     @Transaction
     suspend fun saveEventWithItems(
         event: FutureEventEntity,
@@ -77,11 +58,7 @@ interface FutureEventDao {
                     existingItems[itemId] ?: FutureEventItemEntity(
                         eventId = eventId,
                         itemId = itemId,
-                        status = "Planned",
                         addedAt = now,
-                        preparedAt = null,
-                        preparationComment = null,
-                        preparationWashed = false,
                     )
                 },
             )

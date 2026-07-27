@@ -122,7 +122,7 @@
     <string name="non_negative_number_error">Enter zero or a positive number.</string>
     <string name="past_or_today_date_error">Choose today or an earlier date.</string>
     <string name="future_date_error">Choose today or a future date.</string>
-    <string name="events_subtitle">Plan the items you want ready for important dates.</string>
+    <string name="events_subtitle">Choose clothes for upcoming events and send them through your usual washing workflow.</string>
     <string name="add_event">Add event</string>
     <string name="edit_event">Edit event</string>
     <string name="delete_event">Delete event</string>
@@ -133,12 +133,14 @@
     <string name="event_reminder_lead">Reminder: %1$d day(s) before</string>
     <string name="select_event_items">Select items for this event</string>
     <string name="select_event_items_error">Select at least one item.</string>
-    <string name="event_status_planned">Planned</string>
-    <string name="event_status_needs_preparation">Needs preparation</string>
-    <string name="event_status_prepared">Prepared</string>
+    <string name="event_item_selection_count">%1$d of %2$d items selected</string>
+    <string name="search_event_items">Search clothes</string>
+    <string name="no_event_items_match">No clothes match your search.</string>
+    <string name="add_event_items_to_basket">Add event clothes to basket</string>
+    <string name="event_items_in_basket">Event clothes are in the basket</string>
     <string name="event_no_items">No items selected.</string>
     <string name="event_reminder_title">Upcoming event reminder</string>
-    <string name="event_reminder_body">%1$s is coming up on %2$s.</string>
+    <string name="event_reminder_body">%1$s is coming up on %2$s. Add its clothes to the basket in time to wash them.</string>
     <string name="no_events_title">No future events</string>
     <string name="no_events_body">Add an event and select the items you want ready for it.</string>
 </resources>
