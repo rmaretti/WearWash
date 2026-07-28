@@ -1,0 +1,51 @@
+schema_version: 1
+project: wearwash
+platform: android
+
+verification:
+  command: >-
+    powershell.exe -NoProfile -ExecutionPolicy Bypass
+    -File .\tools\maintenance\verify.ps1
+  stages:
+    - id: local-tests
+      gradle_tasks:
+        - testDebugUnitTest
+      timeout_seconds: 600
+    - id: lint-build
+      gradle_tasks:
+        - lintDebug
+        - assembleDebug
+      timeout_seconds: 600
+    - id: device-e2e
+      gradle_tasks:
+        - pixelApi34DebugAndroidTest
+      timeout_seconds: 1200
+
+policy:
+  require_clean_baseline: true
+  require_all_stages: true
+  max_files_per_patch: 5
+  max_repair_attempts: 3
+  max_infrastructure_retries: 1
+  commit_only_when_green: true
+  auto_push: false
+  auto_merge: false
+
+protected_paths:
+  - maintenance-agent.yaml
+  - tools/maintenance/**
+  - app/src/test/**
+  - app/src/androidTest/**
+  - .github/workflows/**
+
+artifacts:
+  root: build/maintenance-agent
+  retain:
+    - app/build/test-results/**
+    - app/build/reports/tests/**
+    - app/build/reports/lint-results-debug.*
+    - app/build/reports/androidTests/**
+    - app/build/outputs/androidTest-results/**
+    - app/build/outputs/managed_device_android_test_additional_output/**
+    - app/build/outputs/apk/debug/app-debug.apk
+    - app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
