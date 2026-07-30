@@ -11,14 +11,26 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
 $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
+if ($RunId -notmatch '\A[A-Za-z0-9][A-Za-z0-9._-]{2,127}\z') {
+    throw "RunId may contain only letters, digits, dots, underscores, and hyphens."
+}
 if ([string]::IsNullOrWhiteSpace($ArtifactsRoot)) {
     $ArtifactsRoot = Join-Path $repositoryRoot "build\maintenance-agent"
+}
+$isWindowsPlatform = if (Get-Variable -Name IsWindows -ErrorAction SilentlyContinue) {
+    [bool]$IsWindows
+}
+else {
+    $env:OS -eq "Windows_NT"
 }
 $runDirectory = Join-Path $ArtifactsRoot $RunId
 $commandDirectory = Join-Path $runDirectory "commands"
 $artifactDirectory = Join-Path $runDirectory "artifacts"
-New-Item -ItemType Directory -Force -Path $commandDirectory | Out-Null
-New-Item -ItemType Directory -Force -Path $artifactDirectory | Out-Null
+if (Test-Path -LiteralPath $runDirectory) {
+    throw "Run directory already exists: $runDirectory"
+}
+New-Item -ItemType Directory -Path $commandDirectory -Force | Out-Null
+New-Item -ItemType Directory -Path $artifactDirectory -Force | Out-Null
 
 $stages = @(
     [pscustomobject]@{
@@ -79,24 +91,24 @@ function Copy-VerificationArtifacts {
     $paths = switch ($StageId) {
         "local-tests" {
             @(
-                "app\build\test-results\testDebugUnitTest",
-                "app\build\reports\tests\testDebugUnitTest"
+                "app/build/test-results/testDebugUnitTest",
+                "app/build/reports/tests/testDebugUnitTest"
             )
         }
         "lint-build" {
             @(
-                "app\build\reports\lint-results-debug.html",
-                "app\build\reports\lint-results-debug.xml",
-                "app\build\outputs\apk\debug\app-debug.apk"
+                "app/build/reports/lint-results-debug.html",
+                "app/build/reports/lint-results-debug.xml",
+                "app/build/outputs/apk/debug/app-debug.apk"
             )
         }
         "device-e2e" {
             @(
-                "app\build\reports\androidTests\managedDevice",
-                "app\build\outputs\androidTest-results\managedDevice",
-                "app\build\outputs\managed_device_android_test_additional_output",
-                "app\build\outputs\apk\debug\app-debug.apk",
-                "app\build\outputs\apk\androidTest\debug\app-debug-androidTest.apk"
+                "app/build/reports/androidTests/managedDevice",
+                "app/build/outputs/androidTest-results/managedDevice",
+                "app/build/outputs/managed_device_android_test_additional_output",
+                "app/build/outputs/apk/debug/app-debug.apk",
+                "app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk"
             )
         }
         default {
@@ -122,6 +134,36 @@ function Get-ArtifactHashes {
             }
         }
     )
+}
+
+function ConvertTo-ProcessArgument {
+    param([AllowEmptyString()][string]$Argument)
+
+    if ($Argument -notmatch '[\s"]') {
+        return $Argument
+    }
+    return '"' + ($Argument -replace '(\\*)"', '$1$1\"' -replace '(\\+)$', '$1$1') + '"'
+}
+
+function Stop-VerificationProcessTree {
+    param(
+        [Parameter(Mandatory = $true)][System.Diagnostics.Process]$Process,
+        [Parameter(Mandatory = $true)][bool]$StartedInNewSession
+    )
+
+    if ($isWindowsPlatform) {
+        & taskkill.exe /PID $Process.Id /T /F 2>&1 | Out-Null
+        return
+    }
+    if ($StartedInNewSession -and (Test-Path -LiteralPath "/bin/kill")) {
+        & /bin/kill -TERM -- "-$($Process.Id)" 2>&1 | Out-Null
+        Start-Sleep -Seconds 1
+        if (-not $Process.HasExited) {
+            & /bin/kill -KILL -- "-$($Process.Id)" 2>&1 | Out-Null
+        }
+        return
+    }
+    try { $Process.Kill() } catch { }
 }
 
 $run = [ordered]@{
@@ -153,11 +195,35 @@ foreach ($stage in $stages) {
         }
         $stageArguments += "--max-workers=1"
     }
-    $gradleCommand = "gradlew.bat " + ($stageArguments -join " ")
+    $gradleWrapper = if ($isWindowsPlatform) {
+        Join-Path $repositoryRoot "gradlew.bat"
+    }
+    else {
+        Join-Path $repositoryRoot "gradlew"
+    }
+    $gradleDisplayName = if ($isWindowsPlatform) { "gradlew.bat" } else { "./gradlew" }
+    $gradleCommand = $gradleDisplayName + " " + ($stageArguments -join " ")
     $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
     $startInfo = New-Object System.Diagnostics.ProcessStartInfo
-    $startInfo.FileName = Join-Path $env:SystemRoot "System32\cmd.exe"
-    $startInfo.Arguments = "/d /s /c `"$gradleCommand`""
+    $startedInNewSession = $false
+    $quotedArguments = ($stageArguments | ForEach-Object {
+        ConvertTo-ProcessArgument $_
+    }) -join " "
+    if ($isWindowsPlatform) {
+        $windowsCommandProcessor = Join-Path $env:SystemRoot "System32\cmd.exe"
+        $startInfo.FileName = $windowsCommandProcessor
+        $innerCommand = "`"$gradleWrapper`" $quotedArguments"
+        $startInfo.Arguments = "/d /s /c `"$innerCommand`""
+    }
+    elseif (Test-Path -LiteralPath "/usr/bin/setsid") {
+        $startInfo.FileName = "/usr/bin/setsid"
+        $startInfo.Arguments = "bash $(ConvertTo-ProcessArgument $gradleWrapper) $quotedArguments"
+        $startedInNewSession = $true
+    }
+    else {
+        $startInfo.FileName = "bash"
+        $startInfo.Arguments = "$(ConvertTo-ProcessArgument $gradleWrapper) $quotedArguments"
+    }
     $startInfo.WorkingDirectory = $repositoryRoot
     $startInfo.UseShellExecute = $false
     $startInfo.CreateNoWindow = $true
@@ -171,32 +237,58 @@ foreach ($stage in $stages) {
 
     $completed = $process.WaitForExit($stage.timeoutSeconds * 1000)
     if (-not $completed) {
-        & taskkill.exe /PID $process.Id /T /F 2>&1 | Out-Null
-        $process.WaitForExit()
+        Stop-VerificationProcessTree `
+            -Process $process `
+            -StartedInNewSession $startedInNewSession
+        if (-not $process.HasExited) {
+            $process.WaitForExit(10000) | Out-Null
+        }
         $exitCode = $null
         $result = "timed_out"
     }
     else {
-        $process.WaitForExit()
         $process.Refresh()
         $exitCode = $process.ExitCode
         $result = if ($exitCode -eq 0) { "passed" } else { "failed" }
     }
-    $stdoutTask.Result | Set-Content -LiteralPath $stdoutPath -Encoding UTF8
-    $stderrTask.Result | Set-Content -LiteralPath $stderrPath -Encoding UTF8
+    $stdoutComplete = $false
+    $stderrComplete = $false
+    try { $stdoutComplete = $stdoutTask.Wait(5000) } catch { }
+    try { $stderrComplete = $stderrTask.Wait(5000) } catch { }
+    if (-not $stdoutComplete) {
+        try { $process.StandardOutput.Close() } catch { }
+    }
+    if (-not $stderrComplete) {
+        try { $process.StandardError.Close() } catch { }
+    }
+    $stdout = if ($stdoutComplete -and -not $stdoutTask.IsFaulted) {
+        $stdoutTask.Result
+    }
+    else {
+        ""
+    }
+    $stderr = if ($stderrComplete -and -not $stderrTask.IsFaulted) {
+        $stderrTask.Result
+    }
+    else {
+        ""
+    }
+    $stdout | Set-Content -LiteralPath $stdoutPath -Encoding UTF8
+    $stderr | Set-Content -LiteralPath $stderrPath -Encoding UTF8
     $process.Dispose()
     $stopwatch.Stop()
 
     Copy-VerificationArtifacts -StageId $stage.id
     $stageResult = [ordered]@{
         id = $stage.id
-        command = ".\$gradleCommand"
+        command = $gradleCommand
         timeout_seconds = $stage.timeoutSeconds
         exit_code = $exitCode
         duration_ms = $stopwatch.ElapsedMilliseconds
         result = $result
-        stdout = "commands\$($stage.id).stdout.log"
-        stderr = "commands\$($stage.id).stderr.log"
+        stdout = "commands/$($stage.id).stdout.log"
+        stderr = "commands/$($stage.id).stderr.log"
+        output_complete = ($stdoutComplete -and $stderrComplete)
     }
     $run.stages += $stageResult
     Write-JsonFile -Value $run -Path (Join-Path $runDirectory "run.json")
