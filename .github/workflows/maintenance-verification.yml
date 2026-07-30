@@ -51,7 +51,9 @@ jobs:
         shell: bash
         run: |
           sdkmanager_path="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          set +o pipefail
           yes | "$sdkmanager_path" --licenses >/dev/null
+          set -o pipefail
           "$sdkmanager_path" \
             "platform-tools" \
             "platforms;android-35" \
