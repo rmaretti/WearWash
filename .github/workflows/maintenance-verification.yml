@@ -50,8 +50,9 @@ jobs:
       - name: Install the managed-device system image
         shell: bash
         run: |
-          yes | sdkmanager --licenses >/dev/null
-          sdkmanager \
+          sdkmanager_path="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$sdkmanager_path" --licenses >/dev/null
+          "$sdkmanager_path" \
             "platform-tools" \
             "platforms;android-35" \
             "build-tools;35.0.0" \
