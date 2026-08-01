@@ -17,6 +17,7 @@ android {
         versionName = "0.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        testInstrumentationRunnerArguments["clearPackageData"] = "true"
     }
 
     buildTypes {
@@ -44,6 +45,16 @@ android {
 
     testOptions {
         unitTests.isIncludeAndroidResources = true
+        execution = "ANDROIDX_TEST_ORCHESTRATOR"
+        managedDevices {
+            localDevices {
+                create("pixelApi34") {
+                    device = "Pixel 2"
+                    apiLevel = 34
+                    systemImageSource = "aosp"
+                }
+            }
+        }
     }
 }
 
@@ -87,4 +98,5 @@ dependencies {
     androidTestImplementation("androidx.test.uiautomator:uiautomator:2.3.0")
     androidTestImplementation(platform("androidx.compose:compose-bom:2024.09.03"))
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+    androidTestUtil("androidx.test:orchestrator:1.5.1")
 }

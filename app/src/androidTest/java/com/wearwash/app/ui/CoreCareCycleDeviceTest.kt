@@ -1,30 +1,32 @@
 package com.wearwash.app.ui
 
-import androidx.test.core.app.ActivityScenario
+import android.content.Intent
+import android.os.SystemClock
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.UiSelector
 import androidx.test.uiautomator.Until
-import android.view.WindowManager
 import com.wearwash.app.MainActivity
 import com.wearwash.app.R
 import com.wearwash.app.WearWashApplication
-import java.time.OffsetDateTime
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertTrue
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class CoreCareCycleDeviceTest {
-    private lateinit var scenario: ActivityScenario<MainActivity>
     private lateinit var device: UiDevice
     private lateinit var app: WearWashApplication
+
+    @get:Rule
+    val failureArtifacts = DeviceFailureArtifactsRule()
 
     @Before
     fun setUp() {
@@ -32,24 +34,27 @@ class CoreCareCycleDeviceTest {
         app = instrumentation.targetContext.applicationContext as WearWashApplication
         val repository = app.appContainer.itemRepository
         runBlocking {
-            repository.observeActiveItems().first().forEach { item ->
-                repository.archiveItem(item.id, OffsetDateTime.now().toString())
+            check(repository.observeActiveItems().first().isEmpty()) {
+                "Device test requires isolated empty app data; refusing to mutate existing records"
             }
-            repository.observeActiveItems().first { it.isEmpty() }
         }
         device = UiDevice.getInstance(instrumentation)
         device.wakeUp()
         device.executeShellCommand("wm dismiss-keyguard")
-        scenario = ActivityScenario.launch(MainActivity::class.java)
-        scenario.onActivity { activity ->
-            activity.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        }
-        assertTrue(device.wait(Until.hasObject(By.text(text(R.string.add_item))), TIMEOUT))
+        app.startActivity(
+            Intent(app, MainActivity::class.java).addFlags(
+                Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK,
+            ),
+        )
+        instrumentation.waitForIdleSync()
+        assertTrue(findTargets(R.string.add_item).isNotEmpty())
     }
 
     @After
     fun tearDown() {
-        scenario.close()
+        if (::device.isInitialized) {
+            device.pressHome()
+        }
     }
 
     @Test
@@ -68,6 +73,13 @@ class CoreCareCycleDeviceTest {
         assertTrue(device.wait(Until.hasObject(saveButton), TIMEOUT))
         clickAction(R.string.save)
         assertTrue(device.wait(Until.hasObject(By.text(itemName)), TIMEOUT))
+
+        val itemCheckbox = device.findObject(
+            UiSelector().className("android.widget.CheckBox").instance(0),
+        )
+        assertTrue(itemCheckbox.waitForExists(TIMEOUT))
+        itemCheckbox.click()
+        assertTrue(findTargets(R.string.used_today).isNotEmpty())
 
         repeat(3) {
             clickAction(R.string.used_today)
@@ -91,16 +103,28 @@ class CoreCareCycleDeviceTest {
     private fun text(resourceId: Int): String = app.getString(resourceId)
 
     private fun clickAction(resourceId: Int) {
-        val selector = By.text(text(resourceId))
-        assertTrue(device.wait(Until.hasObject(selector), TIMEOUT))
-        val target = device.findObjects(selector).firstNotNullOfOrNull { node ->
+        val target = findTargets(resourceId).firstNotNullOfOrNull { node ->
             generateSequence(node) { it.parent }.firstOrNull { it.isClickable }
         }
         checkNotNull(target) { "No clickable ancestor for '${text(resourceId)}'" }
         target.click()
     }
 
+    private fun findTargets(resourceId: Int): List<androidx.test.uiautomator.UiObject2> {
+        val label = text(resourceId)
+        val deadline = SystemClock.uptimeMillis() + TIMEOUT
+        do {
+            val matches = device.findObjects(By.text(label)) + device.findObjects(By.desc(label))
+            if (matches.isNotEmpty()) {
+                return matches.distinctBy { it.hashCode() }
+            }
+            SystemClock.sleep(POLL_INTERVAL)
+        } while (SystemClock.uptimeMillis() < deadline)
+        return emptyList()
+    }
+
     private companion object {
         const val TIMEOUT = 8_000L
+        const val POLL_INTERVAL = 100L
     }
 }
