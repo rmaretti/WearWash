@@ -483,8 +483,9 @@ class ItemsViewModel(
         if (!form.isValid(today.value)) return
         viewModelScope.launch {
             val existingItem = form.id.takeIf { it != 0L }?.let { itemRepository.getItem(it) }
-            itemRepository.saveItem(form.toEntity(existingItem))
+            val savedItemId = itemRepository.saveItem(form.toEntity(existingItem))
             closeEditor()
+            openItemDetail(savedItemId)
         }
     }
 

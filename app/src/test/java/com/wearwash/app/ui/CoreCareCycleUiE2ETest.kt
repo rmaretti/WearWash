@@ -61,6 +61,11 @@ class CoreCareCycleUiE2ETest {
         composeRule.waitUntil(timeoutMillis = 5_000) {
             repository.currentItems.any { it.id == 1L }
         }
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithText("Used today").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithText("Used today").assertIsDisplayed()
+        composeRule.onNodeWithText("Close").performClick()
         composeRule.onNodeWithTag("items-list").performScrollToNode(hasTestTag("item-1"))
         composeRule.onNodeWithTag("item-1").assertIsDisplayed()
         composeRule.onNodeWithTag("item-select-1").performClick()
