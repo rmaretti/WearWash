@@ -63,16 +63,36 @@ jobs:
       - name: Run the app-owned complete gate
         run: pwsh -NoProfile -File ./tools/maintenance/verify.ps1 -RunId ci-${{ github.run_id }}-${{ github.run_attempt }} -ForceExecution
 
+      - name: Package verification evidence
+        if: always()
+        shell: bash
+        run: |
+          archive="wearwash-verification-${{ github.run_id }}-${{ github.run_attempt }}.tar.gz"
+          evidence_paths=()
+          for path in \
+            build/maintenance-agent \
+            app/build/reports \
+            app/build/test-results \
+            app/build/outputs/androidTest-results \
+            app/build/outputs/managed_device_android_test_additional_output
+          do
+            if [[ -e "$path" ]]; then
+              evidence_paths+=("$path")
+            fi
+          done
+          if (( ${#evidence_paths[@]} == 0 )); then
+            mkdir -p build/maintenance-agent
+            printf '%s\n' 'No verification evidence was produced.' \
+              > build/maintenance-agent/no-verification-evidence.txt
+            evidence_paths+=(build/maintenance-agent/no-verification-evidence.txt)
+          fi
+          tar -czf "$archive" "${evidence_paths[@]}"
+
       - name: Upload verification evidence
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: wearwash-verification-${{ github.run_id }}-${{ github.run_attempt }}
-          path: |
-            build/maintenance-agent/**
-            app/build/reports/**
-            app/build/test-results/**
-            app/build/outputs/androidTest-results/**
-            app/build/outputs/managed_device_android_test_additional_output/**
-          if-no-files-found: warn
+          path: wearwash-verification-${{ github.run_id }}-${{ github.run_attempt }}.tar.gz
+          if-no-files-found: error
           retention-days: 14
