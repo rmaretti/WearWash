@@ -802,11 +802,20 @@ private fun ItemFormState.hasValidRule(): Boolean = when (washingCriteriaType) {
     WashingCriteriaType.Manual -> true
 }
 
+private fun ItemFormState.hasValidDateOrder(): Boolean {
+    val purchasedOn = purchaseDate.toLocalDateOrNull()
+    val lastWashedOn = lastWashingDate.toLocalDateOrNull()
+    return purchasedOn == null ||
+        lastWashedOn == null ||
+        !lastWashedOn.isBefore(purchasedOn)
+}
+
 internal fun ItemFormState.isValid(today: LocalDate = LocalDate.now()): Boolean =
     name.isNotBlank() &&
         hasValidRule() &&
         purchaseDate.isBlankOrValidDate(today) &&
         lastWashingDate.isBlankOrValidDate(today) &&
+        hasValidDateOrder() &&
         purchasePrice.isBlankOrNonNegativeDecimal() &&
         initialUsageCount.isNonNegativeInt() &&
         initialWashingCount.isNonNegativeInt()
