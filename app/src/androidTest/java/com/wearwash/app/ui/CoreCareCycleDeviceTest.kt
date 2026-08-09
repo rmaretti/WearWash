@@ -11,8 +11,10 @@ import androidx.test.uiautomator.Until
 import com.wearwash.app.MainActivity
 import com.wearwash.app.R
 import com.wearwash.app.WearWashApplication
+import com.wearwash.app.data.ItemRepository
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -24,6 +26,7 @@ import org.junit.runner.RunWith
 class CoreCareCycleDeviceTest {
     private lateinit var device: UiDevice
     private lateinit var app: WearWashApplication
+    private lateinit var repository: ItemRepository
 
     @get:Rule
     val failureArtifacts = DeviceFailureArtifactsRule()
@@ -32,7 +35,7 @@ class CoreCareCycleDeviceTest {
     fun setUp() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         app = instrumentation.targetContext.applicationContext as WearWashApplication
-        val repository = app.appContainer.itemRepository
+        repository = app.appContainer.itemRepository
         runBlocking {
             check(repository.observeActiveItems().first().isEmpty()) {
                 "Device test requires isolated empty app data; refusing to mutate existing records"
@@ -84,8 +87,9 @@ class CoreCareCycleDeviceTest {
         itemCheckbox.click()
         assertTrue(findTargets(R.string.used_today).isNotEmpty())
 
-        repeat(3) {
+        repeat(3) { index ->
             clickAction(R.string.used_today)
+            waitForUsesSinceWash(index + 1)
             device.waitForIdle()
         }
         assertTrue(device.wait(Until.hasObject(By.text(text(R.string.needs_washing))), TIMEOUT))
@@ -104,6 +108,16 @@ class CoreCareCycleDeviceTest {
     }
 
     private fun text(resourceId: Int): String = app.getString(resourceId)
+
+    private fun waitForUsesSinceWash(expected: Int) {
+        runBlocking {
+            withTimeout(TIMEOUT) {
+                repository.observeActiveItems().first { items ->
+                    items.singleOrNull()?.usesSinceWash == expected
+                }
+            }
+        }
+    }
 
     private fun clickAction(resourceId: Int) {
         val target = findTargets(resourceId).firstNotNullOfOrNull { node ->
