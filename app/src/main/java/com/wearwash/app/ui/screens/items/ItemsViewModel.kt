@@ -474,6 +474,9 @@ class ItemsViewModel(
     fun deleteCategory(categoryId: Long) {
         viewModelScope.launch {
             val deleted = itemRepository.deleteCategory(categoryId)
+            if (deleted && selectedCategoryId.value == categoryId) {
+                selectedCategoryId.value = null
+            }
             categoryManager.update { it.copy(hasDeleteError = !deleted) }
         }
     }
