@@ -117,6 +117,7 @@ class CoreCareCycleDeviceTest {
                 }
             }
         }
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync()
     }
 
     private fun clickAction(resourceId: Int) {
