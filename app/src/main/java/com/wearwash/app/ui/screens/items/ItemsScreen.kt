@@ -847,6 +847,7 @@ private fun FutureEventEditorDialog(
 private fun BasketContent(uiState: ItemsUiState, viewModel: ItemsViewModel) {
     val allIds = uiState.basketItems.mapTo(mutableSetOf()) { it.id }
     var selectedIds by remember { mutableStateOf(emptySet<Long>()) }
+    var showNoSelectionAlert by remember { mutableStateOf(false) }
     LaunchedEffect(allIds) {
         selectedIds = selectedIds.intersect(allIds)
     }
@@ -887,7 +888,13 @@ private fun BasketContent(uiState: ItemsUiState, viewModel: ItemsViewModel) {
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
-                        onClick = { viewModel.openWashDialog(selectedIds.ifEmpty { allIds }) },
+                        onClick = {
+                            if (selectedIds.isEmpty()) {
+                                showNoSelectionAlert = true
+                            } else {
+                                viewModel.openWashDialog(selectedIds)
+                            }
+                        },
                         enabled = allIds.isNotEmpty(),
                         modifier = Modifier
                             .weight(1f)
@@ -904,6 +911,17 @@ private fun BasketContent(uiState: ItemsUiState, viewModel: ItemsViewModel) {
                 }
             }
         }
+    }
+    if (showNoSelectionAlert) {
+        AlertDialog(
+            onDismissRequest = { showNoSelectionAlert = false },
+            title = { Text(stringResource(R.string.basket_no_selection_alert)) },
+            confirmButton = {
+                TextButton(onClick = { showNoSelectionAlert = false }) {
+                    Text(stringResource(R.string.close))
+                }
+            },
+        )
     }
     LazyColumn(
         modifier = Modifier.testTag("basket-list"),
