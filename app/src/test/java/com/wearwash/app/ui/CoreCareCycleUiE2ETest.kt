@@ -98,6 +98,34 @@ class CoreCareCycleUiE2ETest {
     }
 
     @Test(timeout = 60_000)
+    fun `wash selected requires at least one checked basket item`() {
+        val repository = UiTestItemRepository(
+            initialItems = listOf(uiTestItem(1, "Gym shirt")),
+            initialBasketIds = listOf(1L),
+        )
+        val viewModel = ItemsViewModel(repository)
+        composeRule.setContent {
+            WearWashTheme {
+                ItemsScreen(itemRepository = repository, viewModel = viewModel)
+            }
+        }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            viewModel.uiState.value.basketItems.any { it.id == 1L }
+        }
+        composeRule.onNodeWithTag("basket-tab").performClick()
+
+        composeRule.onNodeWithTag("wash-selected").performClick()
+
+        composeRule.onNodeWithText("Select at least one item to wash.").assertIsDisplayed()
+        assertEquals(
+            0,
+            composeRule.onAllNodesWithTag("confirm-wash").fetchSemanticsNodes().size,
+        )
+        assertEquals(listOf(1L), repository.currentBasketIds)
+    }
+
+    @Test(timeout = 60_000)
     fun `user searches event clothes and adds them to the regular basket`() {
         val repository = UiTestItemRepository(
             initialItems = listOf(
@@ -189,10 +217,11 @@ class CoreCareCycleUiE2ETest {
 private class UiTestItemRepository(
     initialItems: List<WashableItemEntity> = emptyList(),
     initialCategories: List<CategoryEntity> = emptyList(),
+    initialBasketIds: List<Long> = emptyList(),
 ) : ItemRepository {
     private val items = MutableStateFlow(initialItems)
     private val categories = MutableStateFlow(initialCategories)
-    private val basketIds = MutableStateFlow<List<Long>>(emptyList())
+    private val basketIds = MutableStateFlow(initialBasketIds)
     private val usageEvents = MutableStateFlow<List<UsageEventEntity>>(emptyList())
     private val washEvents = MutableStateFlow<List<WashEventEntity>>(emptyList())
     private val futureEvents = MutableStateFlow<List<FutureEventEntity>>(emptyList())
