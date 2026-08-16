@@ -92,7 +92,7 @@ class CoreCareCycleDeviceTest {
             waitForUsesSinceWash(index + 1)
             device.waitForIdle()
         }
-        assertTrue(device.wait(Until.hasObject(By.text(text(R.string.needs_washing))), TIMEOUT))
+        assertTrue(findTargets(R.string.needs_washing).isNotEmpty())
 
         clickAction(R.string.laundry_basket_title)
         clickAction(R.string.add_to_basket)
