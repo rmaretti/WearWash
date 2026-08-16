@@ -76,6 +76,7 @@
     <string name="mark_washed">Mark washed</string>
     <string name="wash_selected">Wash selected</string>
     <string name="wash_all">Wash all</string>
+    <string name="basket_no_selection_alert">Select at least one item to wash.</string>
     <string name="in_basket_section">In the basket</string>
     <string name="suggested_section">Needs washing</string>
     <string name="basket_empty">The basket is empty.</string>

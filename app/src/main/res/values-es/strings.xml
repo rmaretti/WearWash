@@ -76,6 +76,7 @@
     <string name="mark_washed">Marcar como lavado</string>
     <string name="wash_selected">Lavar seleccionados</string>
     <string name="wash_all">Lavar todos</string>
+    <string name="basket_no_selection_alert">Selecciona al menos un artículo para lavar.</string>
     <string name="in_basket_section">En la cesta</string>
     <string name="suggested_section">Necesitan lavado</string>
     <string name="basket_empty">La cesta está vacía.</string>
