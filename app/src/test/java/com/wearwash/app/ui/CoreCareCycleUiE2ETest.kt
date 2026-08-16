@@ -86,8 +86,7 @@ class CoreCareCycleUiE2ETest {
         composeRule.onNodeWithTag("basket-list")
             .performScrollToNode(hasTestTag("basket-select-1"))
 
-        composeRule.onNodeWithTag("basket-select-1").performClick()
-        composeRule.onNodeWithTag("wash-selected").performClick()
+        composeRule.onNodeWithText("Wash all").performClick()
         composeRule.onNodeWithTag("confirm-wash").performClick()
 
         composeRule.waitUntil(timeoutMillis = 5_000) {
