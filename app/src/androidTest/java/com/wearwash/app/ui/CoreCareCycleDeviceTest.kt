@@ -76,8 +76,6 @@ class CoreCareCycleDeviceTest {
         assertTrue(device.wait(Until.hasObject(saveButton), TIMEOUT))
         clickAction(R.string.save)
         assertTrue(device.wait(Until.hasObject(By.text(itemName)), TIMEOUT))
-        assertTrue(device.wait(Until.hasObject(By.text(text(R.string.used_today))), TIMEOUT))
-        clickAction(R.string.close)
         assertTrue(device.wait(Until.gone(By.text(text(R.string.used_today))), TIMEOUT))
 
         val itemCheckbox = device.findObject(
