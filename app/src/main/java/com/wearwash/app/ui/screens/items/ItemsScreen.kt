@@ -846,10 +846,15 @@ private fun FutureEventEditorDialog(
 @Composable
 private fun BasketContent(uiState: ItemsUiState, viewModel: ItemsViewModel) {
     val allIds = uiState.basketItems.mapTo(mutableSetOf()) { it.id }
+    val allSuggestedIds = uiState.suggestedItems.mapTo(mutableSetOf()) { it.id }
     var selectedIds by remember { mutableStateOf(emptySet<Long>()) }
+    var selectedSuggestedIds by remember { mutableStateOf(emptySet<Long>()) }
     var showNoSelectionAlert by remember { mutableStateOf(false) }
     LaunchedEffect(allIds) {
         selectedIds = selectedIds.intersect(allIds)
+    }
+    LaunchedEffect(allSuggestedIds) {
+        selectedSuggestedIds = selectedSuggestedIds.intersect(allSuggestedIds)
     }
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(stringResource(R.string.laundry_basket_title), style = MaterialTheme.typography.headlineMedium)
@@ -961,6 +966,20 @@ private fun BasketContent(uiState: ItemsUiState, viewModel: ItemsViewModel) {
                         stringResource(R.string.basket_suggestions_hint),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    Button(
+                        onClick = {
+                            viewModel.addItemsToBasket(
+                                selectedSuggestedIds,
+                                "automatic_readiness",
+                            )
+                        },
+                        enabled = selectedSuggestedIds.isNotEmpty(),
+                        modifier = Modifier.testTag("basket-selected-suggestions"),
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null)
+                        Spacer(Modifier.width(6.dp))
+                        Text(stringResource(R.string.add_to_basket))
+                    }
                 }
             }
         }
@@ -968,7 +987,7 @@ private fun BasketContent(uiState: ItemsUiState, viewModel: ItemsViewModel) {
             item { EmptyBasketMessage() }
         }
         items(uiState.suggestedItems, key = { "suggested-${it.id}" }) { item ->
-            ElevatedCard(onClick = { viewModel.openItemDetail(item.id) }) {
+            ElevatedCard {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -976,6 +995,17 @@ private fun BasketContent(uiState: ItemsUiState, viewModel: ItemsViewModel) {
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    Checkbox(
+                        checked = item.id in selectedSuggestedIds,
+                        onCheckedChange = { checked ->
+                            selectedSuggestedIds = if (checked) {
+                                selectedSuggestedIds + item.id
+                            } else {
+                                selectedSuggestedIds - item.id
+                            }
+                        },
+                        modifier = Modifier.testTag("suggestion-select-${item.id}"),
+                    )
                     ItemMonogram(item.name)
                     Spacer(Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
@@ -985,12 +1015,15 @@ private fun BasketContent(uiState: ItemsUiState, viewModel: ItemsViewModel) {
                             color = MaterialTheme.colorScheme.error,
                         )
                     }
-                    Button(
-                        onClick = { viewModel.addToBasket(item.id, "automatic_readiness") },
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = null)
-                        Spacer(Modifier.width(6.dp))
-                        Text(stringResource(R.string.add_to_basket))
+                    IconButton(onClick = { viewModel.openItemDetail(item.id) }) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            contentDescription = stringResource(
+                                R.string.open_item_details,
+                                item.name,
+                            ),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 }
             }

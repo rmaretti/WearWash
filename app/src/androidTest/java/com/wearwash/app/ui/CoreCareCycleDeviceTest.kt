@@ -95,6 +95,11 @@ class CoreCareCycleDeviceTest {
         assertTrue(findTargets(R.string.needs_washing).isNotEmpty())
 
         clickAction(R.string.laundry_basket_title)
+        val suggestedItemCheckbox = device.findObject(
+            UiSelector().className("android.widget.CheckBox").instance(0),
+        )
+        assertTrue(suggestedItemCheckbox.waitForExists(TIMEOUT))
+        suggestedItemCheckbox.click()
         clickAction(R.string.add_to_basket)
         assertTrue(device.wait(Until.hasObject(By.text(itemName)), TIMEOUT))
 
