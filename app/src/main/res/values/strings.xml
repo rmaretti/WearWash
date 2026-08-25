@@ -67,6 +67,11 @@
     <string name="in_laundry_basket">In basket</string>
     <string name="archived">Archived</string>
     <string name="uses_since_wash">%1$d uses since wash</string>
+    <string name="recorded_totals">Recorded totals</string>
+    <string name="lifetime_uses_total">Lifetime uses: %1$d</string>
+    <string name="washing_count_total">Washes: %1$d</string>
+    <string name="last_washing_total">Last wash: %1$s</string>
+    <string name="not_recorded">Not recorded</string>
     <string name="close">Close</string>
     <string name="remove">Remove</string>
     <string name="delete">Delete</string>
