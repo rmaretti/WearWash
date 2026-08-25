@@ -1270,6 +1270,19 @@ private fun ItemDetailDialog(
             ) {
                 item { StatusBadges(detail.item) }
                 item {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(stringResource(R.string.recorded_totals), style = MaterialTheme.typography.titleSmall)
+                        Text(stringResource(R.string.lifetime_uses_total, detail.item.lifetimeUses))
+                        Text(stringResource(R.string.washing_count_total, detail.item.washingCount))
+                        Text(
+                            stringResource(
+                                R.string.last_washing_total,
+                                detail.item.lastWashingDate ?: stringResource(R.string.not_recorded),
+                            ),
+                        )
+                    }
+                }
+                item {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         AssistChip(onClick = onUsedToday, label = { Text(stringResource(R.string.used_today)) })
                         AssistChip(
@@ -1753,18 +1766,6 @@ private fun ItemEditorDialog(
                         onManageCategories = onManageCategories,
                     )
                 }
-                if (form.id == 0L) {
-                    item {
-                        FormTextField(
-                            form.initialUsageCount,
-                            { onFormChange(form.copy(initialUsageCount = it)) },
-                            stringResource(R.string.initial_usage_count),
-                            keyboardType = KeyboardType.Number,
-                            isError = form.initialUsageCount.toIntOrNull()?.let { it >= 0 } != true,
-                            supportingText = stringResource(R.string.non_negative_number_error),
-                        )
-                    }
-                }
                 item { Text(stringResource(R.string.washing_criteria), style = MaterialTheme.typography.labelLarge) }
                 item {
                     WashingCriteriaChips(form.washingCriteriaType) {
@@ -1842,7 +1843,6 @@ private fun AdvancedItemFields(form: ItemFormState, onFormChange: (ItemFormState
         FormTextField(form.brand, { onFormChange(form.copy(brand = it)) }, stringResource(R.string.brand))
         FormTextField(form.fabric, { onFormChange(form.copy(fabric = it)) }, stringResource(R.string.fabric))
         FormTextField(form.season, { onFormChange(form.copy(season = it)) }, stringResource(R.string.season))
-        FormTextField(form.photoUri, { onFormChange(form.copy(photoUri = it)) }, stringResource(R.string.photo_uri))
         val purchaseDate = runCatching { LocalDate.parse(form.purchaseDate) }.getOrNull()
         DateField(
             value = form.purchaseDate,
@@ -1867,25 +1867,6 @@ private fun AdvancedItemFields(form: ItemFormState, onFormChange: (ItemFormState
             stringResource(R.string.description),
             singleLine = false,
         )
-        if (form.id == 0L) {
-            FormTextField(
-                form.initialWashingCount,
-                { onFormChange(form.copy(initialWashingCount = it)) },
-                stringResource(R.string.initial_washing_count),
-                keyboardType = KeyboardType.Number,
-                isError = form.initialWashingCount.toIntOrNull()?.let { it >= 0 } != true,
-                supportingText = stringResource(R.string.non_negative_number_error),
-            )
-            val lastWashingDate = runCatching { LocalDate.parse(form.lastWashingDate) }.getOrNull()
-            DateField(
-                value = form.lastWashingDate,
-                onValueChange = { onFormChange(form.copy(lastWashingDate = it)) },
-                label = stringResource(R.string.last_washing_date),
-                isError = form.lastWashingDate.isNotBlank() &&
-                    (lastWashingDate == null || lastWashingDate.isAfter(LocalDate.now())),
-                errorText = stringResource(R.string.past_or_today_date_error),
-            )
-        }
     }
 }
 

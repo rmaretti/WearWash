@@ -48,6 +48,7 @@ data class ItemUiModel(
     val needsWashing: Boolean,
     val readinessReason: WashingReadinessReason?,
     val inBasket: Boolean,
+    val lastWashingDate: String? = null,
 )
 
 data class ItemFormState(
@@ -759,6 +760,7 @@ private fun WashableItemEntity.toUiModel(
         needsWashing = readiness.needsWashing,
         readinessReason = readiness.reason,
         inBasket = id in basketIds,
+        lastWashingDate = lastWashingDate,
     )
 }
 

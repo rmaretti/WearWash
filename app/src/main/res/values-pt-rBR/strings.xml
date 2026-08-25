@@ -67,6 +67,11 @@
     <string name="in_laundry_basket">No cesto</string>
     <string name="archived">Arquivado</string>
     <string name="uses_since_wash">%1$d usos desde a lavagem</string>
+    <string name="recorded_totals">Totais registrados</string>
+    <string name="lifetime_uses_total">Usos totais: %1$d</string>
+    <string name="washing_count_total">Lavagens: %1$d</string>
+    <string name="last_washing_total">Última lavagem: %1$s</string>
+    <string name="not_recorded">Não registrada</string>
     <string name="close">Fechar</string>
     <string name="remove">Remover</string>
     <string name="delete">Excluir</string>
