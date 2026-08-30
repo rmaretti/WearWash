@@ -495,25 +495,34 @@ private fun CategoryFilter(
 
 @Composable
 private fun EventsContent(uiState: ItemsUiState, viewModel: ItemsViewModel) {
+    val isHistory = uiState.eventsView == EventsView.History
     val dueEvents = uiState.events.filter { it.reminderDue }
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(stringResource(R.string.events_title), style = MaterialTheme.typography.headlineMedium)
+        Text(
+            stringResource(if (isHistory) R.string.event_history else R.string.events_title),
+            style = MaterialTheme.typography.headlineMedium,
+        )
         Text(
             stringResource(R.string.events_subtitle),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.End,
-    ) {
-        PrimaryIconAction(
-            icon = Icons.Default.Add,
-            description = stringResource(R.string.add_event),
-            onClick = viewModel::openNewEventEditor,
-            modifier = Modifier.testTag("add-event"),
-        )
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        OutlinedButton(
+            onClick = if (isHistory) viewModel::showOpenEvents else viewModel::showEventHistory,
+            modifier = Modifier.testTag(if (isHistory) "open-events" else "event-history"),
+        ) {
+            Text(stringResource(if (isHistory) R.string.open_events else R.string.event_history))
+        }
+        if (!isHistory) {
+            PrimaryIconAction(
+                icon = Icons.Default.Add,
+                description = stringResource(R.string.add_event),
+                onClick = viewModel::openNewEventEditor,
+                modifier = Modifier.testTag("add-event"),
+            )
+        }
     }
     if (dueEvents.isNotEmpty()) {
         Surface(
@@ -542,7 +551,10 @@ private fun EventsContent(uiState: ItemsUiState, viewModel: ItemsViewModel) {
         }
     }
     if (uiState.events.isEmpty()) {
-        EmptyMessage(R.string.no_events_title, R.string.no_events_body)
+        EmptyMessage(
+            if (isHistory) R.string.no_event_history_title else R.string.no_events_title,
+            if (isHistory) R.string.no_event_history_body else R.string.no_events_body,
+        )
     } else {
         LazyColumn(
             contentPadding = PaddingValues(bottom = 24.dp),
@@ -621,8 +633,10 @@ private fun FutureEventCard(
                         )
                     }
                 }
-                IconButton(onClick = onDelete) {
-                    Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete_event))
+                if (!event.isPast) {
+                    IconButton(onClick = onDelete) {
+                        Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete_event))
+                    }
                 }
             }
             event.description?.let { Text(it) }

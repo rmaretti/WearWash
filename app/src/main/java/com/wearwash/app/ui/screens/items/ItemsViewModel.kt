@@ -34,6 +34,8 @@ import kotlinx.coroutines.launch
 
 enum class MainDestination { Items, Basket, Events }
 
+enum class EventsView { Open, History }
+
 const val MAX_EVENT_ITEMS = 6
 
 data class ItemUiModel(
@@ -153,6 +155,7 @@ data class ItemsUiState(
     val categoryManager: CategoryManagerUiState = CategoryManagerUiState(),
     val selectedCategoryId: Long? = null,
     val events: List<FutureEventUiModel> = emptyList(),
+    val eventsView: EventsView = EventsView.Open,
     val eventForm: FutureEventFormState? = null,
 )
 
@@ -182,6 +185,7 @@ private data class SecondarySurfaceState(
 private data class ReferenceSnapshot(
     val categories: List<CategoryEntity>,
     val events: List<FutureEventUiModel>,
+    val eventsView: EventsView,
 )
 
 private data class EditorState(
@@ -208,6 +212,7 @@ class ItemsViewModel(
     private val categoryManager = MutableStateFlow(CategoryManagerUiState())
     private val selectedCategoryId = MutableStateFlow<Long?>(null)
     private val eventForm = MutableStateFlow<FutureEventFormState?>(null)
+    private val eventsView = MutableStateFlow(EventsView.Open)
 
     private val itemEntities = combine(searchQuery, selectedCategoryId) { query, categoryId ->
         query to categoryId
@@ -307,7 +312,14 @@ class ItemsViewModel(
     private val referenceSnapshot = combine(
         itemRepository.observeCategories(),
         eventSnapshot,
-    ) { categories, events -> ReferenceSnapshot(categories, events) }
+        eventsView,
+    ) { categories, events, view ->
+        ReferenceSnapshot(
+            categories,
+            events.filter { event -> event.isPast == (view == EventsView.History) },
+            view,
+        )
+    }
 
     val uiState: StateFlow<ItemsUiState> = combine(
         itemsSnapshot,
@@ -347,6 +359,7 @@ class ItemsViewModel(
             categoryManager = surface.categoryManager,
             selectedCategoryId = surface.selectedCategoryId,
             events = references.events,
+            eventsView = references.eventsView,
             eventForm = surface.eventForm,
         )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, ItemsUiState())
@@ -365,6 +378,15 @@ class ItemsViewModel(
 
     fun showEvents() {
         destination.value = MainDestination.Events
+        eventsView.value = EventsView.Open
+    }
+
+    fun showEventHistory() {
+        eventsView.value = EventsView.History
+    }
+
+    fun showOpenEvents() {
+        eventsView.value = EventsView.Open
     }
 
     fun updateSearchQuery(query: String) {

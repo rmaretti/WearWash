@@ -129,6 +129,8 @@
     <string name="past_or_today_date_error">Choose today or an earlier date.</string>
     <string name="future_date_error">Choose today or a future date.</string>
     <string name="events_subtitle">Choose clothes for upcoming events and send them through your usual washing workflow.</string>
+    <string name="event_history">History</string>
+    <string name="open_events">Open events</string>
     <string name="add_event">Add event</string>
     <string name="edit_event">Edit event</string>
     <string name="delete_event">Delete event</string>
@@ -149,4 +151,6 @@
     <string name="event_reminder_body">%1$s is coming up on %2$s. Add its clothes to the basket in time to wash them.</string>
     <string name="no_events_title">No future events</string>
     <string name="no_events_body">Add an event and select the items you want ready for it.</string>
+    <string name="no_event_history_title">No event history</string>
+    <string name="no_event_history_body">Past events will appear here.</string>
 </resources>
