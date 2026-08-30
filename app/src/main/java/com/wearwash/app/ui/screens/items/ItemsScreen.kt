@@ -613,8 +613,13 @@ private fun FutureEventCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                IconButton(onClick = onEdit) {
-                    Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.edit_event))
+                if (!event.isPast) {
+                    IconButton(onClick = onEdit) {
+                        Icon(
+                            Icons.Default.Edit,
+                            contentDescription = stringResource(R.string.edit_event),
+                        )
+                    }
                 }
                 IconButton(onClick = onDelete) {
                     Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete_event))
@@ -639,16 +644,18 @@ private fun FutureEventCard(
                                 .padding(horizontal = 8.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Checkbox(
-                                checked = item.id in selectedIds,
-                                onCheckedChange = { checked ->
-                                    selectedIds = if (checked) selectedIds + item.id
-                                    else selectedIds - item.id
-                                },
-                                modifier = Modifier.testTag(
-                                    "event-item-select-${event.id}-${item.id}",
-                                ),
-                            )
+                            if (!event.isPast) {
+                                Checkbox(
+                                    checked = item.id in selectedIds,
+                                    onCheckedChange = { checked ->
+                                        selectedIds = if (checked) selectedIds + item.id
+                                        else selectedIds - item.id
+                                    },
+                                    modifier = Modifier.testTag(
+                                        "event-item-select-${event.id}-${item.id}",
+                                    ),
+                                )
+                            }
                             ItemMonogram(item.name)
                             Spacer(Modifier.width(12.dp))
                             Text(
@@ -660,7 +667,7 @@ private fun FutureEventCard(
                         }
                     }
                 }
-                if (selectedItems.isNotEmpty()) {
+                if (!event.isPast && selectedItems.isNotEmpty()) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(

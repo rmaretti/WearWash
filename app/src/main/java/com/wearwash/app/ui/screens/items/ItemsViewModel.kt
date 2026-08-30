@@ -624,6 +624,7 @@ class ItemsViewModel(
 
     fun openEditEventEditor(eventId: Long) {
         val event = uiState.value.events.firstOrNull { it.id == eventId } ?: return
+        if (event.isPast) return
         eventForm.value = FutureEventFormState(
             id = event.id,
             name = event.name,
@@ -713,6 +714,7 @@ class ItemsViewModel(
         addToBasket: Boolean,
     ) {
         val event = uiState.value.events.firstOrNull { it.id == eventId } ?: return
+        if (event.isPast) return
         val validItemIds = event.items
             .mapTo(mutableSetOf()) { it.id }
             .intersect(selectedItemIds)
