@@ -129,7 +129,11 @@ class CoreCareCycleUiE2ETest {
     fun `user searches event clothes and adds them to the regular basket`() {
         val repository = UiTestItemRepository(
             initialItems = listOf(
-                uiTestItem(1, "Blue shirt"),
+                uiTestItem(1, "Blue shirt").copy(
+                    usesSinceWash = 3,
+                    lifetimeUses = 3,
+                    status = "Worn",
+                ),
                 uiTestItem(2, "Red trousers"),
             ),
         )
