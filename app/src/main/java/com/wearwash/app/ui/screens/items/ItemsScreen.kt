@@ -400,25 +400,27 @@ private fun ItemsContent(uiState: ItemsUiState, viewModel: ItemsViewModel) {
                             onClick = { viewModel.markItemsUsed(selectedIds) },
                             modifier = Modifier.testTag("use-selected-items"),
                         )
-                        PrimaryIconAction(
-                            icon = if (removeSelectedFromBasket) {
-                                Icons.Default.Delete
-                            } else {
-                                Icons.Default.ShoppingCart
-                            },
-                            description = stringResource(
-                                if (removeSelectedFromBasket) R.string.remove_from_basket
-                                else R.string.add_to_basket,
-                            ),
-                            onClick = {
-                                if (removeSelectedFromBasket) {
-                                    viewModel.removeItemsFromBasket(selectedIds)
+                        if (removeSelectedFromBasket || selectedItems.all { it.needsWashing }) {
+                            PrimaryIconAction(
+                                icon = if (removeSelectedFromBasket) {
+                                    Icons.Default.Delete
                                 } else {
-                                    viewModel.addItemsToBasket(selectedIds, "manual")
-                                }
-                            },
-                            modifier = Modifier.testTag("basket-selected-items"),
-                        )
+                                    Icons.Default.ShoppingCart
+                                },
+                                description = stringResource(
+                                    if (removeSelectedFromBasket) R.string.remove_from_basket
+                                    else R.string.add_to_basket,
+                                ),
+                                onClick = {
+                                    if (removeSelectedFromBasket) {
+                                        viewModel.removeItemsFromBasket(selectedIds)
+                                    } else {
+                                        viewModel.addItemsToBasket(selectedIds, "manual")
+                                    }
+                                },
+                                modifier = Modifier.testTag("basket-selected-items"),
+                            )
+                        }
                     }
                 }
             }
@@ -668,21 +670,23 @@ private fun FutureEventCard(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Badge { Text(selectedItems.size.toString()) }
-                        PrimaryIconAction(
-                            icon = if (removeSelectedFromBasket) {
-                                Icons.Default.Delete
-                            } else {
-                                Icons.Default.ShoppingCart
-                            },
-                            description = stringResource(
-                                if (removeSelectedFromBasket) R.string.remove_from_basket
-                                else R.string.add_to_basket,
-                            ),
-                            onClick = {
-                                onUpdateBasket(selectedIds, !removeSelectedFromBasket)
-                            },
-                            modifier = Modifier.testTag("add-event-items-${event.id}"),
-                        )
+                        if (removeSelectedFromBasket || selectedItems.all { it.needsWashing }) {
+                            PrimaryIconAction(
+                                icon = if (removeSelectedFromBasket) {
+                                    Icons.Default.Delete
+                                } else {
+                                    Icons.Default.ShoppingCart
+                                },
+                                description = stringResource(
+                                    if (removeSelectedFromBasket) R.string.remove_from_basket
+                                    else R.string.add_to_basket,
+                                ),
+                                onClick = {
+                                    onUpdateBasket(selectedIds, !removeSelectedFromBasket)
+                                },
+                                modifier = Modifier.testTag("add-event-items-${event.id}"),
+                            )
+                        }
                     }
                 }
             }
@@ -1285,17 +1289,19 @@ private fun ItemDetailDialog(
                 item {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         AssistChip(onClick = onUsedToday, label = { Text(stringResource(R.string.used_today)) })
-                        AssistChip(
-                            onClick = if (detail.item.inBasket) onRemoveFromBasket else onAddToBasket,
-                            label = {
-                                Text(
-                                    stringResource(
-                                        if (detail.item.inBasket) R.string.remove_from_basket
-                                        else R.string.add_to_basket,
-                                    ),
-                                )
-                            },
-                        )
+                        if (detail.item.inBasket || detail.item.needsWashing) {
+                            AssistChip(
+                                onClick = if (detail.item.inBasket) onRemoveFromBasket else onAddToBasket,
+                                label = {
+                                    Text(
+                                        stringResource(
+                                            if (detail.item.inBasket) R.string.remove_from_basket
+                                            else R.string.add_to_basket,
+                                        ),
+                                    )
+                                },
+                            )
+                        }
                         if (detail.item.inBasket) {
                             AssistChip(onClick = onMarkWashed, label = { Text(stringResource(R.string.mark_washed)) })
                         }

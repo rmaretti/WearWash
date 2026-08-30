@@ -8,6 +8,10 @@ import com.wearwash.app.data.local.entity.WashableItemEntity
 import com.wearwash.app.data.local.entity.CategoryEntity
 import com.wearwash.app.data.local.entity.FutureEventEntity
 import com.wearwash.app.data.local.entity.FutureEventItemEntity
+import com.wearwash.app.domain.logic.WashingRule
+import com.wearwash.app.domain.logic.evaluateWashingReadiness
+import com.wearwash.app.domain.model.WashingCriteriaType
+import java.time.LocalDate
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.Flow
 
@@ -150,7 +154,23 @@ class RoomItemRepository(
     }
 
     override suspend fun addToBasket(entry: LaundryBasketEntryEntity) {
-        washableItemDao.addToBasket(entry)
+        val item = washableItemDao.getById(entry.itemId) ?: return
+        val ruleType = runCatching {
+            WashingCriteriaType.valueOf(item.washingCriteriaType)
+        }.getOrDefault(WashingCriteriaType.Manual)
+        val lastWashingDate = item.lastWashingDate?.let {
+            runCatching { LocalDate.parse(it) }.getOrNull()
+        }
+        val readiness = evaluateWashingReadiness(
+            rule = WashingRule(
+                type = ruleType,
+                usageThreshold = item.washingUsageThreshold,
+                dayThreshold = item.washingDayThreshold,
+            ),
+            usesSinceWash = item.usesSinceWash,
+            lastWashingDate = lastWashingDate,
+        )
+        if (readiness.needsWashing) washableItemDao.addToBasket(entry)
     }
 
     override suspend fun removeFromBasket(itemId: Long) {

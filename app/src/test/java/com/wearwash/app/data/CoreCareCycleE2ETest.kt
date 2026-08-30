@@ -130,7 +130,9 @@ class CoreCareCycleE2ETest {
 
     @Test
     fun `backdated wash is rejected without changing item basket or history`() = runTest {
-        val itemId = repository.saveItem(testItem("2026-07-20T08:00:00-03:00"))
+        val itemId = repository.saveItem(
+            testItem("2026-07-20T08:00:00-03:00").copy(washingUsageThreshold = 1),
+        )
         repository.recordUsage(
             itemId = itemId,
             usedAt = "2026-07-23",
@@ -201,7 +203,13 @@ class CoreCareCycleE2ETest {
 
     @Test
     fun `archiving removes basket membership and duplicate adds stay unique`() = runTest {
-        val itemId = repository.saveItem(testItem("2026-07-20T08:00:00-03:00"))
+        val itemId = repository.saveItem(
+            testItem("2026-07-20T08:00:00-03:00").copy(
+                usesSinceWash = 2,
+                lifetimeUses = 2,
+                status = WashableItemStatus.Worn.name,
+            ),
+        )
         val entry = LaundryBasketEntryEntity(
             itemId = itemId,
             addedAt = "2026-07-22T11:00:00-03:00",
