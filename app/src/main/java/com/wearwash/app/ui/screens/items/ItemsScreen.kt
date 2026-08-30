@@ -1296,7 +1296,9 @@ private fun ItemDetailDialog(
                                 )
                             },
                         )
-                        AssistChip(onClick = onMarkWashed, label = { Text(stringResource(R.string.mark_washed)) })
+                        if (detail.item.inBasket) {
+                            AssistChip(onClick = onMarkWashed, label = { Text(stringResource(R.string.mark_washed)) })
+                        }
                     }
                 }
                 item { Text(stringResource(R.string.add_custom_usage), style = MaterialTheme.typography.titleSmall) }
