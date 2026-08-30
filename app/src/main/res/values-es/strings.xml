@@ -129,6 +129,8 @@
     <string name="past_or_today_date_error">Elige hoy o una fecha anterior.</string>
     <string name="future_date_error">Elige hoy o una fecha futura.</string>
     <string name="events_subtitle">Elige prendas para próximos eventos y sigue con ellas tu flujo de lavado habitual.</string>
+    <string name="event_history">Historial</string>
+    <string name="open_events">Eventos abiertos</string>
     <string name="add_event">Añadir evento</string>
     <string name="edit_event">Editar evento</string>
     <string name="delete_event">Eliminar evento</string>
@@ -149,4 +151,6 @@
     <string name="event_reminder_body">%1$s se acerca el %2$s. Agrega sus prendas a la cesta con tiempo para lavarlas.</string>
     <string name="no_events_title">No hay eventos futuros</string>
     <string name="no_events_body">Añade un evento y selecciona las prendas que quieres tener listas.</string>
+    <string name="no_event_history_title">No hay historial de eventos</string>
+    <string name="no_event_history_body">Los eventos pasados aparecerán aquí.</string>
 </resources>
