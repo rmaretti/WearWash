@@ -304,6 +304,39 @@ class CoreCareCycleE2ETest {
     }
 
     @Test
+    fun `open event deletion uses the repository date boundary and cascades assignments`() = runTest {
+        val now = "2026-08-31T08:00:00-03:00"
+        val itemId = repository.saveItem(testItem(now))
+        val todayEventId = repository.saveFutureEvent(
+            FutureEventEntity(
+                name = "Today",
+                eventDate = "2026-08-31",
+                description = null,
+                reminderDaysBefore = 1,
+                createdAt = now,
+                updatedAt = now,
+            ),
+            setOf(itemId),
+        )
+        val expiredEventId = repository.saveFutureEvent(
+            FutureEventEntity(
+                name = "Yesterday",
+                eventDate = "2026-08-30",
+                description = null,
+                reminderDaysBefore = 1,
+                createdAt = now,
+                updatedAt = now,
+            ),
+            setOf(itemId),
+        )
+
+        assertTrue(repository.deleteOpenFutureEvent(todayEventId, LocalDate.parse("2026-08-31")))
+        assertFalse(repository.deleteOpenFutureEvent(expiredEventId, LocalDate.parse("2026-08-31")))
+        assertEquals(listOf(expiredEventId), repository.observeFutureEvents().first().map { it.id })
+        assertEquals(listOf(expiredEventId), repository.observeFutureEventItems().first().map { it.eventId })
+    }
+
+    @Test
     fun `event lifecycle confirms only in window and reconciles expired outcomes`() = runTest {
         val now = "2026-07-25T10:00:00-03:00"
         val itemId = repository.saveItem(testItem(now))
