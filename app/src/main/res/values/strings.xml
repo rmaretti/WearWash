@@ -139,7 +139,7 @@
     <string name="confirm_event">Confirm event</string>
     <string name="confirm_event_title">Confirm %1$s?</string>
     <string name="confirm_event_body">This event is scheduled for %1$s.</string>
-    <string name="confirm_event_add_items">Add eligible items that need washing to the basket</string>
+    <string name="confirm_event_add_items">When I confirm, add all event items that need washing directly to the basket</string>
     <string name="confirm">Confirm</string>
     <string name="add_event">Add event</string>
     <string name="edit_event">Edit event</string>

@@ -569,14 +569,11 @@ private fun EventsContent(uiState: ItemsUiState, viewModel: ItemsViewModel) {
             ) {
                 items(uiState.events, key = { "event-${it.id}" }) { event ->
                     FutureEventCard(
-                        event = event,
-                        onEdit = { viewModel.openEditEventEditor(event.id) },
-                        onDelete = { viewModel.deleteEvent(event.id) },
-                        onConfirm = { eventToConfirm = event },
-                        onUpdateBasket = { itemIds, addToBasket ->
-                            viewModel.updateEventItemsBasket(event.id, itemIds, addToBasket)
-                        },
-                    )
+                    event = event,
+                    onEdit = { viewModel.openEditEventEditor(event.id) },
+                    onDelete = { viewModel.deleteEvent(event.id) },
+                    onConfirm = { eventToConfirm = event },
+                )
                 }
             }
         }
@@ -622,17 +619,7 @@ private fun FutureEventCard(
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     onConfirm: () -> Unit,
-    onUpdateBasket: (Set<Long>, Boolean) -> Unit,
 ) {
-    val eventItemIds = event.items.mapTo(mutableSetOf()) { it.id }
-    var selectedIds by remember(event.id) { mutableStateOf(emptySet<Long>()) }
-    LaunchedEffect(eventItemIds) {
-        selectedIds = selectedIds.intersect(eventItemIds)
-    }
-    val selectedItems = event.items.filter { it.id in selectedIds }
-    val removeSelectedFromBasket =
-        selectedItems.isNotEmpty() && selectedItems.all { it.inBasket }
-    val canManageBasket = !event.isPast && event.lifecycleStatus == FutureEventStatus.CONFIRMED
     ElevatedCard(
         modifier = Modifier
             .fillMaxWidth()
@@ -708,18 +695,6 @@ private fun FutureEventCard(
                                 .padding(horizontal = 8.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            if (canManageBasket) {
-                                Checkbox(
-                                    checked = item.id in selectedIds,
-                                    onCheckedChange = { checked ->
-                                        selectedIds = if (checked) selectedIds + item.id
-                                        else selectedIds - item.id
-                                    },
-                                    modifier = Modifier.testTag(
-                                        "event-item-select-${event.id}-${item.id}",
-                                    ),
-                                )
-                            }
                             ItemMonogram(item.name)
                             Spacer(Modifier.width(12.dp))
                             Text(
@@ -728,35 +703,6 @@ private fun FutureEventCard(
                                 modifier = Modifier.weight(1f),
                             )
                             StatusBadges(item)
-                        }
-                    }
-                }
-                if (canManageBasket && selectedItems.isNotEmpty()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(
-                            space = 10.dp,
-                            alignment = Alignment.End,
-                        ),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Badge { Text(selectedItems.size.toString()) }
-                        if (removeSelectedFromBasket || selectedItems.all { it.needsWashing }) {
-                            PrimaryIconAction(
-                                icon = if (removeSelectedFromBasket) {
-                                    Icons.Default.Delete
-                                } else {
-                                    Icons.Default.ShoppingCart
-                                },
-                                description = stringResource(
-                                    if (removeSelectedFromBasket) R.string.remove_from_basket
-                                    else R.string.add_to_basket,
-                                ),
-                                onClick = {
-                                    onUpdateBasket(selectedIds, !removeSelectedFromBasket)
-                                },
-                                modifier = Modifier.testTag("add-event-items-${event.id}"),
-                            )
                         }
                     }
                 }

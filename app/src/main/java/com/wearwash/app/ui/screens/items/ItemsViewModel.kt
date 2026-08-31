@@ -591,17 +591,21 @@ class ItemsViewModel(
     fun addItemsToBasket(itemIds: Set<Long>, reason: String? = null) {
         if (itemIds.isEmpty()) return
         viewModelScope.launch {
-            val now = OffsetDateTime.now().toString()
-            itemIds.forEach { itemId ->
-                itemRepository.addToBasket(
-                    LaundryBasketEntryEntity(
-                        itemId = itemId,
-                        addedAt = now,
-                        reason = reason,
-                        comment = null,
-                    ),
-                )
-            }
+            addItemsToBasketNow(itemIds, reason)
+        }
+    }
+
+    private suspend fun addItemsToBasketNow(itemIds: Set<Long>, reason: String?) {
+        val now = OffsetDateTime.now().toString()
+        itemIds.forEach { itemId ->
+            itemRepository.addToBasket(
+                LaundryBasketEntryEntity(
+                    itemId = itemId,
+                    addedAt = now,
+                    reason = reason,
+                    comment = null,
+                ),
+            )
         }
     }
 
@@ -766,31 +770,8 @@ class ItemsViewModel(
                 val eligibleIds = event.items
                     .filter { it.needsWashing && !it.inBasket }
                     .mapTo(mutableSetOf()) { it.id }
-                addItemsToBasket(eligibleIds, "event-confirmation:$eventId")
+                addItemsToBasketNow(eligibleIds, "event-confirmation:$eventId")
             }
-        }
-    }
-
-    fun updateEventItemsBasket(
-        eventId: Long,
-        selectedItemIds: Set<Long>,
-        addToBasket: Boolean,
-    ) {
-        val event = uiState.value.events.firstOrNull { it.id == eventId } ?: return
-        if (event.isPast || event.lifecycleStatus != FutureEventStatus.CONFIRMED) return
-        val validItemIds = event.items
-            .mapTo(mutableSetOf()) { it.id }
-            .intersect(selectedItemIds)
-        if (addToBasket) {
-            val idsToAdd = event.items
-                .filter { it.id in validItemIds && !it.inBasket }
-                .mapTo(mutableSetOf()) { it.id }
-            addItemsToBasket(idsToAdd, "event:$eventId")
-        } else {
-            val idsToRemove = event.items
-                .filter { it.id in validItemIds && it.inBasket }
-                .mapTo(mutableSetOf()) { it.id }
-            removeItemsFromBasket(idsToRemove)
         }
     }
 

@@ -139,7 +139,7 @@
     <string name="confirm_event">Confirmar evento</string>
     <string name="confirm_event_title">¿Confirmar %1$s?</string>
     <string name="confirm_event_body">Este evento está programado para el %1$s.</string>
-    <string name="confirm_event_add_items">Agregar a la cesta los artículos elegibles que necesitan lavado</string>
+    <string name="confirm_event_add_items">Al confirmar, agregar directamente a la cesta todos los artículos del evento que necesitan lavado</string>
     <string name="confirm">Confirmar</string>
     <string name="add_event">Añadir evento</string>
     <string name="edit_event">Editar evento</string>
