@@ -12,6 +12,7 @@ import com.wearwash.app.MainActivity
 import com.wearwash.app.R
 import com.wearwash.app.WearWashApplication
 import com.wearwash.app.data.ItemRepository
+import com.wearwash.app.data.local.entity.FutureEventStatus
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -55,6 +56,16 @@ class CoreCareCycleDeviceTest {
 
     @After
     fun tearDown() {
+        if (::repository.isInitialized) {
+            runBlocking {
+                repository.observeFutureEvents().first().forEach { event ->
+                    repository.deleteFutureEvent(event.id)
+                }
+                repository.observeActiveItems().first().forEach { item ->
+                    repository.archiveItem(item.id, "device-test-cleanup")
+                }
+            }
+        }
         if (::device.isInitialized) {
             device.pressHome()
         }
@@ -92,13 +103,40 @@ class CoreCareCycleDeviceTest {
         }
         assertTrue(findTargets(R.string.needs_washing).isNotEmpty())
 
-        clickAction(R.string.laundry_basket_title)
-        val suggestedItemCheckbox = device.findObject(
+        clickAction(R.string.events_title)
+        clickAction(R.string.add_event)
+        assertTrue(device.wait(Until.hasObject(By.text(text(R.string.event_name))), TIMEOUT))
+        val eventNameField = device.findObject(
+            UiSelector().className("android.widget.EditText").instance(0),
+        )
+        eventNameField.click()
+        eventNameField.setText("Device dinner")
+        device.pressBack()
+        val eventItemCheckbox = device.findObject(
             UiSelector().className("android.widget.CheckBox").instance(0),
         )
-        assertTrue(suggestedItemCheckbox.waitForExists(TIMEOUT))
-        suggestedItemCheckbox.click()
-        clickAction(R.string.add_to_basket)
+        assertTrue(eventItemCheckbox.waitForExists(TIMEOUT))
+        eventItemCheckbox.click()
+        clickAction(R.string.save)
+        assertTrue(device.wait(Until.hasObject(By.text("Device dinner")), TIMEOUT))
+
+        clickAction(R.string.confirm_event)
+        assertTrue(device.wait(Until.hasObject(By.text(text(R.string.confirm_event_add_items))), TIMEOUT))
+        val addItemsCheckbox = device.findObject(
+            UiSelector().className("android.widget.CheckBox").instance(0),
+        )
+        assertTrue(addItemsCheckbox.waitForExists(TIMEOUT))
+        addItemsCheckbox.click()
+        clickAction(R.string.confirm)
+        runBlocking {
+            withTimeout(TIMEOUT) {
+                repository.observeFutureEvents().first { events ->
+                    events.singleOrNull()?.lifecycleStatus == FutureEventStatus.CONFIRMED.name
+                }
+            }
+        }
+
+        clickAction(R.string.laundry_basket_title)
         assertTrue(device.wait(Until.hasObject(By.text(itemName)), TIMEOUT))
 
         clickAction(R.string.wash_all)

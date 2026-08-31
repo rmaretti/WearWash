@@ -131,6 +131,16 @@
     <string name="events_subtitle">Choose clothes for upcoming events and send them through your usual washing workflow.</string>
     <string name="event_history">History</string>
     <string name="open_events">Open events</string>
+    <string name="event_history_subtitle">Review completed and unconfirmed past events.</string>
+    <string name="event_status_pending">Pending</string>
+    <string name="event_status_confirmed">Confirmed</string>
+    <string name="event_status_completed">Completed</string>
+    <string name="event_status_not_confirmed">Not confirmed</string>
+    <string name="confirm_event">Confirm event</string>
+    <string name="confirm_event_title">Confirm %1$s?</string>
+    <string name="confirm_event_body">This event is scheduled for %1$s.</string>
+    <string name="confirm_event_add_items">Add eligible items that need washing to the basket</string>
+    <string name="confirm">Confirm</string>
     <string name="add_event">Add event</string>
     <string name="edit_event">Edit event</string>
     <string name="delete_event">Delete event</string>

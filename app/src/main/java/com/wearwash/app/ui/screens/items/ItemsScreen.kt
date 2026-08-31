@@ -93,6 +93,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.wearwash.app.R
 import com.wearwash.app.data.ItemRepository
 import com.wearwash.app.data.local.entity.CategoryEntity
+import com.wearwash.app.data.local.entity.FutureEventStatus
 import com.wearwash.app.domain.logic.WashingReadinessReason
 import com.wearwash.app.domain.model.WashableItemStatus
 import com.wearwash.app.domain.model.WashingCriteriaType
@@ -496,6 +497,7 @@ private fun CategoryFilter(
 @Composable
 private fun EventsContent(uiState: ItemsUiState, viewModel: ItemsViewModel) {
     val isHistory = uiState.eventsView == EventsView.History
+    var eventToConfirm by remember { mutableStateOf<FutureEventUiModel?>(null) }
     val dueEvents = uiState.events.filter { it.reminderDue }
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(
@@ -503,7 +505,9 @@ private fun EventsContent(uiState: ItemsUiState, viewModel: ItemsViewModel) {
             style = MaterialTheme.typography.headlineMedium,
         )
         Text(
-            stringResource(R.string.events_subtitle),
+            stringResource(
+                if (isHistory) R.string.event_history_subtitle else R.string.events_subtitle,
+            ),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -557,6 +561,7 @@ private fun EventsContent(uiState: ItemsUiState, viewModel: ItemsViewModel) {
         )
     } else {
         LazyColumn(
+            modifier = Modifier.testTag("events-list"),
             contentPadding = PaddingValues(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -565,12 +570,23 @@ private fun EventsContent(uiState: ItemsUiState, viewModel: ItemsViewModel) {
                     event = event,
                     onEdit = { viewModel.openEditEventEditor(event.id) },
                     onDelete = { viewModel.deleteEvent(event.id) },
+                    onConfirm = { eventToConfirm = event },
                     onUpdateBasket = { itemIds, addToBasket ->
                         viewModel.updateEventItemsBasket(event.id, itemIds, addToBasket)
                     },
                 )
             }
         }
+    }
+    eventToConfirm?.let { event ->
+        EventConfirmationDialog(
+            event = event,
+            onDismiss = { eventToConfirm = null },
+            onConfirm = { addEligibleItems ->
+                viewModel.confirmEvent(event.id, addEligibleItems)
+                eventToConfirm = null
+            },
+        )
     }
 }
 
@@ -602,6 +618,7 @@ private fun FutureEventCard(
     event: FutureEventUiModel,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
+    onConfirm: () -> Unit,
     onUpdateBasket: (Set<Long>, Boolean) -> Unit,
 ) {
     val eventItemIds = event.items.mapTo(mutableSetOf()) { it.id }
@@ -612,7 +629,12 @@ private fun FutureEventCard(
     val selectedItems = event.items.filter { it.id in selectedIds }
     val removeSelectedFromBasket =
         selectedItems.isNotEmpty() && selectedItems.all { it.inBasket }
-    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+    val canManageBasket = !event.isPast && event.lifecycleStatus == FutureEventStatus.CONFIRMED
+    ElevatedCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("event-card-${event.id}"),
+    ) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -644,6 +666,31 @@ private fun FutureEventCard(
                 stringResource(R.string.event_reminder_lead, event.reminderDaysBefore),
                 style = MaterialTheme.typography.bodySmall,
             )
+            AssistChip(
+                onClick = {},
+                enabled = false,
+                label = {
+                    Text(
+                        stringResource(
+                            when (event.lifecycleStatus) {
+                                FutureEventStatus.PENDING -> R.string.event_status_pending
+                                FutureEventStatus.CONFIRMED -> R.string.event_status_confirmed
+                                FutureEventStatus.COMPLETED -> R.string.event_status_completed
+                                FutureEventStatus.NOT_CONFIRMED -> R.string.event_status_not_confirmed
+                            },
+                        ),
+                    )
+                },
+                modifier = Modifier.testTag("event-status-${event.id}"),
+            )
+            if (event.confirmationDue) {
+                Button(
+                    onClick = onConfirm,
+                    modifier = Modifier.testTag("confirm-event-${event.id}"),
+                ) {
+                    Text(stringResource(R.string.confirm_event))
+                }
+            }
             if (event.items.isEmpty()) {
                 Text(stringResource(R.string.event_no_items))
             } else {
@@ -658,7 +705,7 @@ private fun FutureEventCard(
                                 .padding(horizontal = 8.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            if (!event.isPast) {
+                            if (canManageBasket) {
                                 Checkbox(
                                     checked = item.id in selectedIds,
                                     onCheckedChange = { checked ->
@@ -681,7 +728,7 @@ private fun FutureEventCard(
                         }
                     }
                 }
-                if (!event.isPast && selectedItems.isNotEmpty()) {
+                if (canManageBasket && selectedItems.isNotEmpty()) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(
@@ -713,6 +760,44 @@ private fun FutureEventCard(
             }
         }
     }
+}
+
+@Composable
+private fun EventConfirmationDialog(
+    event: FutureEventUiModel,
+    onDismiss: () -> Unit,
+    onConfirm: (Boolean) -> Unit,
+) {
+    var addEligibleItems by remember(event.id) { mutableStateOf(false) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.confirm_event_title, event.name)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(stringResource(R.string.confirm_event_body, event.eventDate.toString()))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(
+                        checked = addEligibleItems,
+                        onCheckedChange = { addEligibleItems = it },
+                        modifier = Modifier.testTag("confirm-event-add-items"),
+                    )
+                    Text(stringResource(R.string.confirm_event_add_items))
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(addEligibleItems) },
+                modifier = Modifier.testTag("confirm-event-action"),
+            ) {
+                Text(stringResource(R.string.confirm))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+        },
+        modifier = Modifier.testTag("event-confirmation-dialog"),
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

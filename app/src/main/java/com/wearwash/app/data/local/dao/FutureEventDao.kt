@@ -25,6 +25,24 @@ interface FutureEventDao {
     @Query("SELECT * FROM future_events WHERE id = :eventId LIMIT 1")
     suspend fun getEvent(eventId: Long): FutureEventEntity?
 
+    @Query(
+        "UPDATE future_events SET lifecycleStatus = 'CONFIRMED', updatedAt = :updatedAt " +
+            "WHERE id = :eventId AND lifecycleStatus = 'PENDING'",
+    )
+    suspend fun confirmPendingEvent(eventId: Long, updatedAt: String): Int
+
+    @Query(
+        "UPDATE future_events SET lifecycleStatus = 'COMPLETED', updatedAt = :updatedAt " +
+            "WHERE eventDate < :today AND lifecycleStatus = 'CONFIRMED'",
+    )
+    suspend fun completeExpiredConfirmedEvents(today: String, updatedAt: String): Int
+
+    @Query(
+        "UPDATE future_events SET lifecycleStatus = 'NOT_CONFIRMED', updatedAt = :updatedAt " +
+            "WHERE eventDate < :today AND lifecycleStatus = 'PENDING'",
+    )
+    suspend fun closeExpiredPendingEvents(today: String, updatedAt: String): Int
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertEvent(event: FutureEventEntity): Long
 
@@ -39,6 +57,12 @@ interface FutureEventDao {
 
     @Insert
     suspend fun insertEventItems(items: List<FutureEventItemEntity>)
+
+    @Transaction
+    suspend fun reconcileExpiredEvents(today: String, updatedAt: String) {
+        completeExpiredConfirmedEvents(today, updatedAt)
+        closeExpiredPendingEvents(today, updatedAt)
+    }
 
     @Transaction
     suspend fun saveEventWithItems(

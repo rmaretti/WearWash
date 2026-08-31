@@ -11,6 +11,7 @@ import com.wearwash.app.data.local.entity.WashableItemEntity
 import com.wearwash.app.data.local.entity.CategoryEntity
 import com.wearwash.app.data.local.entity.FutureEventEntity
 import com.wearwash.app.data.local.entity.FutureEventItemEntity
+import com.wearwash.app.data.local.entity.FutureEventStatus
 import com.wearwash.app.domain.logic.WashingReadinessReason
 import com.wearwash.app.domain.logic.WashingRule
 import com.wearwash.app.domain.logic.evaluateWashingReadiness
@@ -19,6 +20,7 @@ import com.wearwash.app.domain.model.WashingCriteriaType
 import java.math.RoundingMode
 import java.time.LocalDate
 import java.time.OffsetDateTime
+import java.time.temporal.ChronoUnit
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -128,6 +130,8 @@ data class FutureEventUiModel(
     val items: List<ItemUiModel>,
     val reminderDue: Boolean,
     val isPast: Boolean,
+    val lifecycleStatus: FutureEventStatus,
+    val confirmationDue: Boolean,
 )
 
 data class FutureEventFormState(
@@ -274,6 +278,15 @@ class ItemsViewModel(
         val basketIdSet = basketIds.toSet()
         events.mapNotNull { event ->
             val date = event.eventDate.toLocalDateOrNull() ?: return@mapNotNull null
+            val storedStatus = FutureEventStatus.fromStorage(event.lifecycleStatus)
+            val status = when {
+                date.isBefore(currentDate) && storedStatus == FutureEventStatus.CONFIRMED ->
+                    FutureEventStatus.COMPLETED
+                date.isBefore(currentDate) && storedStatus == FutureEventStatus.PENDING ->
+                    FutureEventStatus.NOT_CONFIRMED
+                else -> storedStatus
+            }
+            val daysUntilEvent = ChronoUnit.DAYS.between(currentDate, date)
             val eventItems = assignments
                 .filter { it.eventId == event.id }
                 .take(MAX_EVENT_ITEMS)
@@ -291,6 +304,8 @@ class ItemsViewModel(
                 reminderDue = !date.isBefore(currentDate) &&
                     !currentDate.isBefore(date.minusDays(event.reminderDaysBefore.toLong())),
                 isPast = date.isBefore(currentDate),
+                lifecycleStatus = status,
+                confirmationDue = status == FutureEventStatus.PENDING && daysUntilEvent in 0L..3L,
             )
         }
     }
@@ -364,8 +379,14 @@ class ItemsViewModel(
         )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, ItemsUiState())
 
+    init {
+        reconcileEventStatuses(today.value)
+    }
+
     fun refreshDate() {
-        today.value = LocalDate.now()
+        val currentDate = LocalDate.now()
+        today.value = currentDate
+        reconcileEventStatuses(currentDate)
     }
 
     fun showItems() {
@@ -727,7 +748,27 @@ class ItemsViewModel(
     }
 
     fun deleteEvent(eventId: Long) {
+        val event = uiState.value.events.firstOrNull { it.id == eventId } ?: return
+        if (event.isPast) return
         viewModelScope.launch { itemRepository.deleteFutureEvent(eventId) }
+    }
+
+    fun confirmEvent(eventId: Long, addEligibleItemsToBasket: Boolean) {
+        val event = uiState.value.events.firstOrNull { it.id == eventId } ?: return
+        if (!event.confirmationDue || event.isPast) return
+        viewModelScope.launch {
+            val confirmed = itemRepository.confirmFutureEvent(
+                eventId = eventId,
+                today = today.value,
+                updatedAt = OffsetDateTime.now().toString(),
+            )
+            if (confirmed && addEligibleItemsToBasket) {
+                val eligibleIds = event.items
+                    .filter { it.needsWashing && !it.inBasket }
+                    .mapTo(mutableSetOf()) { it.id }
+                addItemsToBasket(eligibleIds, "event-confirmation:$eventId")
+            }
+        }
     }
 
     fun updateEventItemsBasket(
@@ -736,7 +777,7 @@ class ItemsViewModel(
         addToBasket: Boolean,
     ) {
         val event = uiState.value.events.firstOrNull { it.id == eventId } ?: return
-        if (event.isPast) return
+        if (event.isPast || event.lifecycleStatus != FutureEventStatus.CONFIRMED) return
         val validItemIds = event.items
             .mapTo(mutableSetOf()) { it.id }
             .intersect(selectedItemIds)
@@ -750,6 +791,15 @@ class ItemsViewModel(
                 .filter { it.id in validItemIds && it.inBasket }
                 .mapTo(mutableSetOf()) { it.id }
             removeItemsFromBasket(idsToRemove)
+        }
+    }
+
+    private fun reconcileEventStatuses(currentDate: LocalDate) {
+        viewModelScope.launch {
+            itemRepository.reconcileFutureEventStatuses(
+                today = currentDate,
+                updatedAt = OffsetDateTime.now().toString(),
+            )
         }
     }
 

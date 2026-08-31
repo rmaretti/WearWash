@@ -8,6 +8,7 @@ import com.wearwash.app.data.local.entity.WashableItemEntity
 import com.wearwash.app.data.local.entity.CategoryEntity
 import com.wearwash.app.data.local.entity.FutureEventEntity
 import com.wearwash.app.data.local.entity.FutureEventItemEntity
+import com.wearwash.app.data.local.entity.FutureEventStatus
 import com.wearwash.app.domain.logic.WashingRule
 import com.wearwash.app.domain.logic.evaluateWashingReadiness
 import com.wearwash.app.domain.model.WashingCriteriaType
@@ -23,6 +24,8 @@ interface ItemRepository {
     suspend fun deleteCategory(categoryId: Long): Boolean = false
     suspend fun saveFutureEvent(event: FutureEventEntity, itemIds: Set<Long>): Long = 0
     suspend fun deleteFutureEvent(eventId: Long) = Unit
+    suspend fun confirmFutureEvent(eventId: Long, today: LocalDate, updatedAt: String): Boolean = false
+    suspend fun reconcileFutureEventStatuses(today: LocalDate, updatedAt: String) = Unit
     fun observeActiveItems(): Flow<List<WashableItemEntity>>
     fun searchItems(query: String): Flow<List<WashableItemEntity>>
     fun observeItem(id: Long): Flow<WashableItemEntity?>
@@ -95,7 +98,11 @@ class RoomItemRepository(
         val now = java.time.OffsetDateTime.now().toString()
         val existing = if (event.id == 0L) null else futureEventDao.getEvent(event.id)
         return futureEventDao.saveEventWithItems(
-            event.copy(createdAt = existing?.createdAt ?: event.createdAt, updatedAt = now),
+            event.copy(
+                lifecycleStatus = existing?.lifecycleStatus ?: FutureEventStatus.PENDING.name,
+                createdAt = existing?.createdAt ?: event.createdAt,
+                updatedAt = now,
+            ),
             itemIds,
             now,
         )
@@ -103,6 +110,22 @@ class RoomItemRepository(
 
     override suspend fun deleteFutureEvent(eventId: Long) {
         futureEventDao.getEvent(eventId)?.let { futureEventDao.deleteEvent(it) }
+    }
+
+    override suspend fun confirmFutureEvent(
+        eventId: Long,
+        today: LocalDate,
+        updatedAt: String,
+    ): Boolean {
+        val event = futureEventDao.getEvent(eventId) ?: return false
+        val eventDate = runCatching { LocalDate.parse(event.eventDate) }.getOrNull() ?: return false
+        val daysUntilEvent = java.time.temporal.ChronoUnit.DAYS.between(today, eventDate)
+        if (daysUntilEvent !in 0L..3L) return false
+        return futureEventDao.confirmPendingEvent(eventId, updatedAt) == 1
+    }
+
+    override suspend fun reconcileFutureEventStatuses(today: LocalDate, updatedAt: String) {
+        futureEventDao.reconcileExpiredEvents(today.toString(), updatedAt)
     }
 
     override fun observeActiveItems(): Flow<List<WashableItemEntity>> =

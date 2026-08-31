@@ -131,6 +131,16 @@
     <string name="events_subtitle">Elige prendas para próximos eventos y sigue con ellas tu flujo de lavado habitual.</string>
     <string name="event_history">Historial</string>
     <string name="open_events">Eventos abiertos</string>
+    <string name="event_history_subtitle">Revisa los eventos pasados completados y no confirmados.</string>
+    <string name="event_status_pending">Pendiente</string>
+    <string name="event_status_confirmed">Confirmado</string>
+    <string name="event_status_completed">Completado</string>
+    <string name="event_status_not_confirmed">No confirmado</string>
+    <string name="confirm_event">Confirmar evento</string>
+    <string name="confirm_event_title">¿Confirmar %1$s?</string>
+    <string name="confirm_event_body">Este evento está programado para el %1$s.</string>
+    <string name="confirm_event_add_items">Agregar a la cesta los artículos elegibles que necesitan lavado</string>
+    <string name="confirm">Confirmar</string>
     <string name="add_event">Añadir evento</string>
     <string name="edit_event">Editar evento</string>
     <string name="delete_event">Eliminar evento</string>
