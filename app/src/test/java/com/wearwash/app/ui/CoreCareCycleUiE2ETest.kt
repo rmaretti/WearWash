@@ -23,6 +23,7 @@ import com.wearwash.app.data.local.entity.WashableItemEntity
 import com.wearwash.app.ui.screens.items.ItemsScreen
 import com.wearwash.app.ui.screens.items.ItemsViewModel
 import com.wearwash.app.ui.screens.items.MAX_EVENT_ITEMS
+import com.wearwash.app.ui.screens.items.EventsView
 import com.wearwash.app.ui.theme.WearWashTheme
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -253,6 +254,50 @@ class CoreCareCycleUiE2ETest {
         assertEquals(0, composeRule.onAllNodesWithText("Confirm event").fetchSemanticsNodes().size)
     }
 
+    @Test(timeout = 60_000)
+    fun `same-day event stays out of history and deletes during view transition`() {
+        val repository = UiTestItemRepository(
+            initialFutureEvents = listOf(
+                uiTestEvent(
+                    id = 1,
+                    name = "Today's event",
+                    eventDate = LocalDate.now().toString(),
+                    status = FutureEventStatus.PENDING,
+                ),
+            ),
+        )
+        val viewModel = ItemsViewModel(repository)
+        composeRule.setContent {
+            WearWashTheme {
+                ItemsScreen(itemRepository = repository, viewModel = viewModel)
+            }
+        }
+
+        composeRule.onNodeWithTag("events-tab").performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            viewModel.uiState.value.events.singleOrNull()?.id == 1L
+        }
+        composeRule.onNodeWithTag("event-card-1").assertExists()
+
+        composeRule.onNodeWithTag("event-history").performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            viewModel.uiState.value.eventsView == EventsView.History &&
+                viewModel.uiState.value.events.isEmpty()
+        }
+        assertEquals(0, composeRule.onAllNodesWithTag("event-card-1").fetchSemanticsNodes().size)
+
+        composeRule.runOnIdle { viewModel.deleteEvent(1L) }
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            repository.currentFutureEvents.isEmpty()
+        }
+        viewModel.showOpenEvents()
+        composeRule.onNodeWithTag("event-history").performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            viewModel.uiState.value.events.isEmpty()
+        }
+        assertEquals(0, composeRule.onAllNodesWithTag("event-card-1").fetchSemanticsNodes().size)
+    }
+
 }
 
 private class UiTestItemRepository(
@@ -272,6 +317,8 @@ private class UiTestItemRepository(
         get() = basketIds.value
     val currentItems: List<WashableItemEntity>
         get() = items.value
+    val currentFutureEvents: List<FutureEventEntity>
+        get() = futureEvents.value
 
     override fun observeCategories(): Flow<List<CategoryEntity>> = categories
     override fun observeFutureEvents(): Flow<List<FutureEventEntity>> = futureEvents
@@ -413,6 +460,13 @@ private class UiTestItemRepository(
     override suspend fun deleteFutureEvent(eventId: Long) {
         futureEvents.value = futureEvents.value.filterNot { it.id == eventId }
         futureEventItems.value = futureEventItems.value.filterNot { it.eventId == eventId }
+    }
+
+    override suspend fun deleteOpenFutureEvent(eventId: Long, today: LocalDate): Boolean {
+        val event = futureEvents.value.firstOrNull { it.id == eventId } ?: return false
+        if (LocalDate.parse(event.eventDate).isBefore(today)) return false
+        deleteFutureEvent(eventId)
+        return true
     }
 
     override suspend fun confirmFutureEvent(

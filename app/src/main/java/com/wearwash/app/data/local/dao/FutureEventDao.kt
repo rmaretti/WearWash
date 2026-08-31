@@ -52,6 +52,9 @@ interface FutureEventDao {
     @Delete
     suspend fun deleteEvent(event: FutureEventEntity)
 
+    @Query("DELETE FROM future_events WHERE id = :eventId AND eventDate >= :today")
+    suspend fun deleteOpenEvent(eventId: Long, today: String): Int
+
     @Query("DELETE FROM future_event_items WHERE eventId = :eventId")
     suspend fun deleteEventItems(eventId: Long)
 

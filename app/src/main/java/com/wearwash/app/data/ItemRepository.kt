@@ -24,6 +24,7 @@ interface ItemRepository {
     suspend fun deleteCategory(categoryId: Long): Boolean = false
     suspend fun saveFutureEvent(event: FutureEventEntity, itemIds: Set<Long>): Long = 0
     suspend fun deleteFutureEvent(eventId: Long) = Unit
+    suspend fun deleteOpenFutureEvent(eventId: Long, today: LocalDate): Boolean = false
     suspend fun confirmFutureEvent(eventId: Long, today: LocalDate, updatedAt: String): Boolean = false
     suspend fun reconcileFutureEventStatuses(today: LocalDate, updatedAt: String) = Unit
     fun observeActiveItems(): Flow<List<WashableItemEntity>>
@@ -111,6 +112,9 @@ class RoomItemRepository(
     override suspend fun deleteFutureEvent(eventId: Long) {
         futureEventDao.getEvent(eventId)?.let { futureEventDao.deleteEvent(it) }
     }
+
+    override suspend fun deleteOpenFutureEvent(eventId: Long, today: LocalDate): Boolean =
+        futureEventDao.deleteOpenEvent(eventId, today.toString()) == 1
 
     override suspend fun confirmFutureEvent(
         eventId: Long,

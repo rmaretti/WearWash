@@ -68,6 +68,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -554,27 +555,29 @@ private fun EventsContent(uiState: ItemsUiState, viewModel: ItemsViewModel) {
             }
         }
     }
-    if (uiState.events.isEmpty()) {
-        EmptyMessage(
-            if (isHistory) R.string.no_event_history_title else R.string.no_events_title,
-            if (isHistory) R.string.no_event_history_body else R.string.no_events_body,
-        )
-    } else {
-        LazyColumn(
-            modifier = Modifier.testTag("events-list"),
-            contentPadding = PaddingValues(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            items(uiState.events, key = { "event-${it.id}" }) { event ->
-                FutureEventCard(
-                    event = event,
-                    onEdit = { viewModel.openEditEventEditor(event.id) },
-                    onDelete = { viewModel.deleteEvent(event.id) },
-                    onConfirm = { eventToConfirm = event },
-                    onUpdateBasket = { itemIds, addToBasket ->
-                        viewModel.updateEventItemsBasket(event.id, itemIds, addToBasket)
-                    },
-                )
+    key(uiState.eventsView) {
+        if (uiState.events.isEmpty()) {
+            EmptyMessage(
+                if (isHistory) R.string.no_event_history_title else R.string.no_events_title,
+                if (isHistory) R.string.no_event_history_body else R.string.no_events_body,
+            )
+        } else {
+            LazyColumn(
+                modifier = Modifier.testTag("events-list"),
+                contentPadding = PaddingValues(bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                items(uiState.events, key = { "event-${it.id}" }) { event ->
+                    FutureEventCard(
+                        event = event,
+                        onEdit = { viewModel.openEditEventEditor(event.id) },
+                        onDelete = { viewModel.deleteEvent(event.id) },
+                        onConfirm = { eventToConfirm = event },
+                        onUpdateBasket = { itemIds, addToBasket ->
+                            viewModel.updateEventItemsBasket(event.id, itemIds, addToBasket)
+                        },
+                    )
+                }
             }
         }
     }

@@ -12,7 +12,10 @@ import com.wearwash.app.MainActivity
 import com.wearwash.app.R
 import com.wearwash.app.WearWashApplication
 import com.wearwash.app.data.ItemRepository
+import com.wearwash.app.data.local.entity.FutureEventEntity
 import com.wearwash.app.data.local.entity.FutureEventStatus
+import java.time.LocalDate
+import java.time.OffsetDateTime
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -146,6 +149,57 @@ class CoreCareCycleDeviceTest {
 
         assertTrue(device.wait(Until.hasObject(By.text(text(R.string.basket_empty))), TIMEOUT))
         assertTrue(device.wait(Until.hasObject(By.text(text(R.string.no_suggestions))), TIMEOUT))
+    }
+
+    @Test
+    fun sameDayEventIsNeverHistoricalAndDeletionClearsEveryView() {
+        clickAction(R.string.add_item)
+        assertTrue(device.wait(Until.hasObject(By.text(text(R.string.item_name))), TIMEOUT))
+        val nameField = device.findObject(
+            UiSelector().className("android.widget.EditText").instance(0),
+        )
+        nameField.click()
+        nameField.setText("History boundary shirt")
+        device.pressBack()
+        clickAction(R.string.save)
+        val itemId = runBlocking {
+            withTimeout(TIMEOUT) {
+                repository.observeActiveItems().first { it.size == 1 }.single().id
+            }
+        }
+        val eventName = "Today boundary event"
+        runBlocking {
+            val now = OffsetDateTime.now().toString()
+            repository.saveFutureEvent(
+                FutureEventEntity(
+                    name = eventName,
+                    eventDate = LocalDate.now().toString(),
+                    description = null,
+                    reminderDaysBefore = 1,
+                    createdAt = now,
+                    updatedAt = now,
+                ),
+                setOf(itemId),
+            )
+        }
+
+        clickAction(R.string.events_title)
+        assertTrue(device.wait(Until.hasObject(By.text(eventName)), TIMEOUT))
+        clickAction(R.string.event_history)
+        assertTrue(device.wait(Until.gone(By.text(eventName)), TIMEOUT))
+        assertTrue(device.wait(Until.hasObject(By.text(text(R.string.no_event_history_title))), TIMEOUT))
+
+        clickAction(R.string.open_events)
+        assertTrue(device.wait(Until.hasObject(By.text(eventName)), TIMEOUT))
+        clickAction(R.string.delete_event)
+        runBlocking {
+            withTimeout(TIMEOUT) {
+                repository.observeFutureEvents().first { it.isEmpty() }
+            }
+        }
+        clickAction(R.string.event_history)
+        assertTrue(device.wait(Until.gone(By.text(eventName)), TIMEOUT))
+        assertTrue(device.wait(Until.hasObject(By.text(text(R.string.no_event_history_title))), TIMEOUT))
     }
 
     private fun text(resourceId: Int): String = app.getString(resourceId)

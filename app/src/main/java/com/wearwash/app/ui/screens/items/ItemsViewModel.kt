@@ -748,9 +748,9 @@ class ItemsViewModel(
     }
 
     fun deleteEvent(eventId: Long) {
-        val event = uiState.value.events.firstOrNull { it.id == eventId } ?: return
-        if (event.isPast) return
-        viewModelScope.launch { itemRepository.deleteFutureEvent(eventId) }
+        viewModelScope.launch {
+            itemRepository.deleteOpenFutureEvent(eventId, today.value)
+        }
     }
 
     fun confirmEvent(eventId: Long, addEligibleItemsToBasket: Boolean) {
