@@ -173,6 +173,54 @@ class CoreCareCycleUiE2ETest {
                 viewModel.uiState.value.events.single().lifecycleStatus ==
                 FutureEventStatus.CONFIRMED
         }
+        assertEquals(
+            0,
+            composeRule.onAllNodesWithTag("event-item-select-1-1").fetchSemanticsNodes().size,
+        )
+    }
+
+    @Test(timeout = 60_000)
+    fun `confirming event without basket option leaves basket unchanged`() {
+        val repository = UiTestItemRepository(
+            initialItems = listOf(
+                uiTestItem(1, "Blue shirt").copy(
+                    usesSinceWash = 3,
+                    lifetimeUses = 3,
+                    status = "Worn",
+                ),
+            ),
+        )
+        val viewModel = ItemsViewModel(repository)
+        composeRule.setContent {
+            WearWashTheme {
+                ItemsScreen(itemRepository = repository, viewModel = viewModel)
+            }
+        }
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            viewModel.uiState.value.allItems.size == 1
+        }
+
+        composeRule.onNodeWithTag("events-tab").performClick()
+        composeRule.onNodeWithTag("add-event").performClick()
+        composeRule.onNodeWithTag("event-name").performTextInput("Dinner without laundry")
+        composeRule.onNodeWithTag("event-item-1").performScrollTo().performClick()
+        composeRule.onNodeWithTag("save-event").performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithText("Dinner without laundry")
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithTag("confirm-event-1").performScrollTo().performClick()
+        composeRule.onNodeWithTag("confirm-event-action").performClick()
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            viewModel.uiState.value.events.single().lifecycleStatus ==
+                FutureEventStatus.CONFIRMED
+        }
+        assertEquals(emptyList<Long>(), repository.currentBasketIds)
+        assertEquals(
+            0,
+            composeRule.onAllNodesWithTag("event-item-select-1-1").fetchSemanticsNodes().size,
+        )
     }
 
     @Test(timeout = 60_000)
