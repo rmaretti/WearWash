@@ -7,10 +7,12 @@ import com.wearwash.app.data.local.WearWashDatabase
 import com.wearwash.app.data.local.entity.LaundryBasketEntryEntity
 import com.wearwash.app.data.local.entity.CategoryEntity
 import com.wearwash.app.data.local.entity.FutureEventEntity
+import com.wearwash.app.data.local.entity.FutureEventStatus
 import com.wearwash.app.data.local.entity.WashableItemEntity
 import com.wearwash.app.domain.model.WashableItemStatus
 import com.wearwash.app.domain.model.WashingCriteriaType
 import java.io.IOException
+import java.time.LocalDate
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -299,6 +301,60 @@ class CoreCareCycleE2ETest {
         repository.deleteFutureEvent(eventId)
         assertTrue(repository.observeFutureEvents().first().isEmpty())
         assertTrue(repository.observeFutureEventItems().first().isEmpty())
+    }
+
+    @Test
+    fun `event lifecycle confirms only in window and reconciles expired outcomes`() = runTest {
+        val now = "2026-07-25T10:00:00-03:00"
+        val itemId = repository.saveItem(testItem(now))
+        val confirmedEventId = repository.saveFutureEvent(
+            FutureEventEntity(
+                name = "Dinner",
+                eventDate = "2026-07-28",
+                description = null,
+                reminderDaysBefore = 1,
+                createdAt = now,
+                updatedAt = now,
+            ),
+            setOf(itemId),
+        )
+        val missedEventId = repository.saveFutureEvent(
+            FutureEventEntity(
+                name = "Trip",
+                eventDate = "2026-07-29",
+                description = null,
+                reminderDaysBefore = 1,
+                createdAt = now,
+                updatedAt = now,
+            ),
+            setOf(itemId),
+        )
+
+        assertTrue(
+            repository.confirmFutureEvent(
+                confirmedEventId,
+                LocalDate.parse("2026-07-25"),
+                now,
+            ),
+        )
+        assertFalse(
+            repository.confirmFutureEvent(
+                missedEventId,
+                LocalDate.parse("2026-07-25"),
+                now,
+            ),
+        )
+
+        repository.reconcileFutureEventStatuses(
+            LocalDate.parse("2026-07-30"),
+            "2026-07-30T08:00:00-03:00",
+        )
+        val statuses = repository.observeFutureEvents().first().associate {
+            it.id to FutureEventStatus.fromStorage(it.lifecycleStatus)
+        }
+        assertEquals(FutureEventStatus.COMPLETED, statuses[confirmedEventId])
+        assertEquals(FutureEventStatus.NOT_CONFIRMED, statuses[missedEventId])
+        assertEquals(2, repository.observeFutureEventItems().first().size)
     }
 
     private fun testItem(createdAt: String) = WashableItemEntity(

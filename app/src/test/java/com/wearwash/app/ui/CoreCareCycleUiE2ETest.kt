@@ -16,6 +16,7 @@ import com.wearwash.app.data.local.entity.LaundryBasketEntryEntity
 import com.wearwash.app.data.local.entity.CategoryEntity
 import com.wearwash.app.data.local.entity.FutureEventEntity
 import com.wearwash.app.data.local.entity.FutureEventItemEntity
+import com.wearwash.app.data.local.entity.FutureEventStatus
 import com.wearwash.app.data.local.entity.UsageEventEntity
 import com.wearwash.app.data.local.entity.WashEventEntity
 import com.wearwash.app.data.local.entity.WashableItemEntity
@@ -27,6 +28,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
+import java.time.LocalDate
 import org.junit.Rule
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -161,10 +163,14 @@ class CoreCareCycleUiE2ETest {
             composeRule.onAllNodesWithText("Family dinner").fetchSemanticsNodes().isNotEmpty() &&
                 composeRule.onAllNodesWithTag("event-reminder").fetchSemanticsNodes().isNotEmpty()
         }
-        composeRule.onNodeWithTag("event-item-select-1-1").performScrollTo().performClick()
-        composeRule.onNodeWithTag("add-event-items-1").performScrollTo().performClick()
+        composeRule.onNodeWithTag("confirm-event-1").performScrollTo().performClick()
+        composeRule.onNodeWithTag("event-confirmation-dialog").assertIsDisplayed()
+        composeRule.onNodeWithTag("confirm-event-add-items").performClick()
+        composeRule.onNodeWithTag("confirm-event-action").performClick()
         composeRule.waitUntil(timeoutMillis = 5_000) {
-            repository.currentBasketIds == listOf(1L)
+            repository.currentBasketIds == listOf(1L) &&
+                viewModel.uiState.value.events.single().lifecycleStatus ==
+                FutureEventStatus.CONFIRMED
         }
     }
 
@@ -216,19 +222,51 @@ class CoreCareCycleUiE2ETest {
         )
     }
 
+    @Test(timeout = 60_000)
+    fun `expired events appear in history with completed and not confirmed states`() {
+        val yesterday = LocalDate.now().minusDays(1).toString()
+        val repository = UiTestItemRepository(
+            initialFutureEvents = listOf(
+                uiTestEvent(1, "Confirmed dinner", yesterday, FutureEventStatus.CONFIRMED),
+                uiTestEvent(2, "Missed trip", yesterday, FutureEventStatus.PENDING),
+            ),
+        )
+        val viewModel = ItemsViewModel(repository)
+        composeRule.setContent {
+            WearWashTheme {
+                ItemsScreen(itemRepository = repository, viewModel = viewModel)
+            }
+        }
+
+        composeRule.onNodeWithTag("events-tab").performClick()
+        composeRule.onNodeWithTag("event-history").performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            viewModel.uiState.value.events.map { it.lifecycleStatus }.toSet() ==
+                setOf(FutureEventStatus.COMPLETED, FutureEventStatus.NOT_CONFIRMED)
+        }
+        composeRule.onNodeWithTag("events-list")
+            .performScrollToNode(hasTestTag("event-card-1"))
+        composeRule.onNodeWithTag("event-status-1").assertExists()
+        composeRule.onNodeWithTag("events-list")
+            .performScrollToNode(hasTestTag("event-card-2"))
+        composeRule.onNodeWithTag("event-status-2").assertExists()
+        assertEquals(0, composeRule.onAllNodesWithText("Confirm event").fetchSemanticsNodes().size)
+    }
+
 }
 
 private class UiTestItemRepository(
     initialItems: List<WashableItemEntity> = emptyList(),
     initialCategories: List<CategoryEntity> = emptyList(),
     initialBasketIds: List<Long> = emptyList(),
+    initialFutureEvents: List<FutureEventEntity> = emptyList(),
 ) : ItemRepository {
     private val items = MutableStateFlow(initialItems)
     private val categories = MutableStateFlow(initialCategories)
     private val basketIds = MutableStateFlow(initialBasketIds)
     private val usageEvents = MutableStateFlow<List<UsageEventEntity>>(emptyList())
     private val washEvents = MutableStateFlow<List<WashEventEntity>>(emptyList())
-    private val futureEvents = MutableStateFlow<List<FutureEventEntity>>(emptyList())
+    private val futureEvents = MutableStateFlow(initialFutureEvents)
     private val futureEventItems = MutableStateFlow<List<FutureEventItemEntity>>(emptyList())
     val currentBasketIds: List<Long>
         get() = basketIds.value
@@ -377,6 +415,44 @@ private class UiTestItemRepository(
         futureEventItems.value = futureEventItems.value.filterNot { it.eventId == eventId }
     }
 
+    override suspend fun confirmFutureEvent(
+        eventId: Long,
+        today: LocalDate,
+        updatedAt: String,
+    ): Boolean {
+        val event = futureEvents.value.firstOrNull { it.id == eventId } ?: return false
+        val daysUntilEvent = java.time.temporal.ChronoUnit.DAYS.between(
+            today,
+            LocalDate.parse(event.eventDate),
+        )
+        if (FutureEventStatus.fromStorage(event.lifecycleStatus) != FutureEventStatus.PENDING ||
+            daysUntilEvent !in 0L..3L
+        ) return false
+        futureEvents.value = futureEvents.value.map {
+            if (it.id == eventId) {
+                it.copy(
+                    lifecycleStatus = FutureEventStatus.CONFIRMED.name,
+                    updatedAt = updatedAt,
+                )
+            } else {
+                it
+            }
+        }
+        return true
+    }
+
+    override suspend fun reconcileFutureEventStatuses(today: LocalDate, updatedAt: String) {
+        futureEvents.value = futureEvents.value.map { event ->
+            if (!LocalDate.parse(event.eventDate).isBefore(today)) return@map event
+            val status = when (FutureEventStatus.fromStorage(event.lifecycleStatus)) {
+                FutureEventStatus.PENDING -> FutureEventStatus.NOT_CONFIRMED
+                FutureEventStatus.CONFIRMED -> FutureEventStatus.COMPLETED
+                else -> return@map event
+            }
+            event.copy(lifecycleStatus = status.name, updatedAt = updatedAt)
+        }
+    }
+
 }
 
 private fun uiTestCategory(id: Long, systemKey: String) = CategoryEntity(
@@ -387,6 +463,22 @@ private fun uiTestCategory(id: Long, systemKey: String) = CategoryEntity(
     washingCriteriaType = "ByUsage",
     washingUsageThreshold = 3,
     washingDayThreshold = null,
+    createdAt = "2026-07-25T08:00:00-03:00",
+    updatedAt = "2026-07-25T08:00:00-03:00",
+)
+
+private fun uiTestEvent(
+    id: Long,
+    name: String,
+    eventDate: String,
+    status: FutureEventStatus,
+) = FutureEventEntity(
+    id = id,
+    name = name,
+    eventDate = eventDate,
+    description = null,
+    reminderDaysBefore = 1,
+    lifecycleStatus = status.name,
     createdAt = "2026-07-25T08:00:00-03:00",
     updatedAt = "2026-07-25T08:00:00-03:00",
 )

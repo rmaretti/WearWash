@@ -199,6 +199,40 @@ class DatabaseMigrationTest {
         }
     }
 
+    @Test
+    fun `migration 5 to 6 adds pending lifecycle without losing events`() {
+        val database = helper.writableDatabase
+        database.execSQL(
+            """
+            CREATE TABLE future_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                name TEXT NOT NULL,
+                eventDate TEXT NOT NULL,
+                description TEXT,
+                reminderDaysBefore INTEGER NOT NULL,
+                createdAt TEXT NOT NULL,
+                updatedAt TEXT NOT NULL
+            )
+            """.trimIndent(),
+        )
+        database.execSQL(
+            """
+            INSERT INTO future_events(
+                name, eventDate, description, reminderDaysBefore, createdAt, updatedAt
+            ) VALUES ('Existing event', '2026-08-15', NULL, 3, 'created', 'updated')
+            """.trimIndent(),
+        )
+
+        MIGRATION_5_6.migrate(database)
+
+        database.query("SELECT name, lifecycleStatus FROM future_events").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals("Existing event", cursor.getString(0))
+            assertEquals("PENDING", cursor.getString(1))
+            assertTrue(cursor.isLast)
+        }
+    }
+
     private companion object {
         const val DATABASE_NAME = "wear-wash-migration-test.db"
     }

@@ -27,7 +27,7 @@ import com.wearwash.app.data.local.entity.WashableItemEntity
         FutureEventItemEntity::class,
         CategoryEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = true,
 )
 abstract class WearWashDatabase : RoomDatabase() {
@@ -46,7 +46,13 @@ abstract class WearWashDatabase : RoomDatabase() {
                     WearWashDatabase::class.java,
                     "wear_wash.db",
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                    .addMigrations(
+                        MIGRATION_1_2,
+                        MIGRATION_2_3,
+                        MIGRATION_3_4,
+                        MIGRATION_4_5,
+                        MIGRATION_5_6,
+                    )
                     .addCallback(
                         object : RoomDatabase.Callback() {
                             override fun onCreate(db: SupportSQLiteDatabase) {
@@ -189,6 +195,14 @@ val MIGRATION_4_5 = object : Migration(4, 5) {
         )
         database.execSQL(
             "CREATE INDEX index_future_event_items_itemId ON future_event_items(itemId)",
+        )
+    }
+}
+
+val MIGRATION_5_6 = object : Migration(5, 6) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL(
+            "ALTER TABLE future_events ADD COLUMN lifecycleStatus TEXT NOT NULL DEFAULT 'PENDING'",
         )
     }
 }
