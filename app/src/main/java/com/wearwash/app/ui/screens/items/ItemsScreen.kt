@@ -717,6 +717,8 @@ private fun EventConfirmationDialog(
     onDismiss: () -> Unit,
     onConfirm: (Boolean) -> Unit,
 ) {
+    val eligibleItemCount = event.items.count { it.needsWashing && !it.inBasket }
+    val canAddItemsToBasket = eligibleItemCount > 0
     var addEligibleItems by remember(event.id) { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -726,17 +728,26 @@ private fun EventConfirmationDialog(
                 Text(stringResource(R.string.confirm_event_body, event.eventDate.toString()))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(
-                        checked = addEligibleItems,
+                        checked = addEligibleItems && canAddItemsToBasket,
                         onCheckedChange = { addEligibleItems = it },
+                        enabled = canAddItemsToBasket,
                         modifier = Modifier.testTag("confirm-event-add-items"),
                     )
                     Text(stringResource(R.string.confirm_event_add_items))
+                }
+                if (!canAddItemsToBasket) {
+                    Text(
+                        text = stringResource(R.string.confirm_event_no_eligible_items),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.testTag("confirm-event-no-eligible-items"),
+                    )
                 }
             }
         },
         confirmButton = {
             TextButton(
-                onClick = { onConfirm(addEligibleItems) },
+                onClick = { onConfirm(addEligibleItems && canAddItemsToBasket) },
                 modifier = Modifier.testTag("confirm-event-action"),
             ) {
                 Text(stringResource(R.string.confirm))

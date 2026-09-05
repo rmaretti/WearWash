@@ -1,6 +1,7 @@
 package com.wearwash.app.ui
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -180,14 +181,10 @@ class CoreCareCycleUiE2ETest {
     }
 
     @Test(timeout = 60_000)
-    fun `confirming event without basket option leaves basket unchanged`() {
+    fun `confirmation explains when no event items need washing and leaves basket unchanged`() {
         val repository = UiTestItemRepository(
             initialItems = listOf(
-                uiTestItem(1, "Blue shirt").copy(
-                    usesSinceWash = 3,
-                    lifetimeUses = 3,
-                    status = "Worn",
-                ),
+                uiTestItem(1, "Blue shirt"),
             ),
         )
         val viewModel = ItemsViewModel(repository)
@@ -210,6 +207,8 @@ class CoreCareCycleUiE2ETest {
                 .fetchSemanticsNodes().isNotEmpty()
         }
         composeRule.onNodeWithTag("confirm-event-1").performScrollTo().performClick()
+        composeRule.onNodeWithTag("confirm-event-add-items").assertIsNotEnabled()
+        composeRule.onNodeWithTag("confirm-event-no-eligible-items").assertIsDisplayed()
         composeRule.onNodeWithTag("confirm-event-action").performClick()
 
         composeRule.waitUntil(timeoutMillis = 5_000) {
