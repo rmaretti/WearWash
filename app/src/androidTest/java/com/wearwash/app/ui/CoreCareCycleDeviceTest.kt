@@ -152,6 +152,51 @@ class CoreCareCycleDeviceTest {
     }
 
     @Test
+    fun cleanEventItemCanBeAddedForOutOfCycleWash() {
+        clickAction(R.string.add_item)
+        assertTrue(device.wait(Until.hasObject(By.text(text(R.string.item_name))), TIMEOUT))
+        val itemName = "Out of cycle shirt"
+        val nameField = device.findObject(
+            UiSelector().className("android.widget.EditText").instance(0),
+        )
+        nameField.click()
+        nameField.setText(itemName)
+        device.pressBack()
+        clickAction(R.string.save)
+        assertTrue(device.wait(Until.hasObject(By.text(itemName)), TIMEOUT))
+
+        clickAction(R.string.events_title)
+        clickAction(R.string.add_event)
+        assertTrue(device.wait(Until.hasObject(By.text(text(R.string.event_name))), TIMEOUT))
+        val eventNameField = device.findObject(
+            UiSelector().className("android.widget.EditText").instance(0),
+        )
+        eventNameField.click()
+        eventNameField.setText("Out of cycle dinner")
+        device.pressBack()
+        val eventItemCheckbox = device.findObject(
+            UiSelector().className("android.widget.CheckBox").instance(0),
+        )
+        assertTrue(eventItemCheckbox.waitForExists(TIMEOUT))
+        eventItemCheckbox.click()
+        clickAction(R.string.save)
+        assertTrue(device.wait(Until.hasObject(By.text("Out of cycle dinner")), TIMEOUT))
+
+        clickAction(R.string.confirm_event)
+        assertTrue(device.wait(Until.hasObject(By.text(text(R.string.confirm_event_add_items))), TIMEOUT))
+        val addItemsCheckbox = device.findObject(
+            UiSelector().className("android.widget.CheckBox").instance(0),
+        )
+        assertTrue(addItemsCheckbox.waitForExists(TIMEOUT))
+        assertTrue(addItemsCheckbox.isEnabled)
+        addItemsCheckbox.click()
+        clickAction(R.string.confirm)
+
+        clickAction(R.string.laundry_basket_title)
+        assertTrue(device.wait(Until.hasObject(By.text(itemName)), TIMEOUT))
+    }
+
+    @Test
     fun sameDayEventIsNeverHistoricalAndDeletionClearsEveryView() {
         clickAction(R.string.add_item)
         assertTrue(device.wait(Until.hasObject(By.text(text(R.string.item_name))), TIMEOUT))

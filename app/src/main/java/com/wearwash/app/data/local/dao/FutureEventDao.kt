@@ -9,6 +9,7 @@ import androidx.room.Transaction
 import androidx.room.Update
 import com.wearwash.app.data.local.entity.FutureEventEntity
 import com.wearwash.app.data.local.entity.FutureEventItemEntity
+import com.wearwash.app.data.local.entity.LaundryBasketEntryEntity
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -29,7 +30,39 @@ interface FutureEventDao {
         "UPDATE future_events SET lifecycleStatus = 'CONFIRMED', updatedAt = :updatedAt " +
             "WHERE id = :eventId AND lifecycleStatus = 'PENDING'",
     )
-    suspend fun confirmPendingEvent(eventId: Long, updatedAt: String): Int
+    suspend fun markPendingEventConfirmed(eventId: Long, updatedAt: String): Int
+
+    @Query(
+        "SELECT future_event_items.itemId FROM future_event_items " +
+            "INNER JOIN items ON items.id = future_event_items.itemId " +
+            "WHERE future_event_items.eventId = :eventId AND items.archivedAt IS NULL",
+    )
+    suspend fun getActiveEventItemIds(eventId: Long): List<Long>
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertBasketEntries(entries: List<LaundryBasketEntryEntity>): List<Long>
+
+    @Transaction
+    suspend fun confirmPendingEvent(
+        eventId: Long,
+        updatedAt: String,
+        addEventItemsToBasket: Boolean,
+    ): Boolean {
+        val confirmed = markPendingEventConfirmed(eventId, updatedAt) == 1
+        if (confirmed && addEventItemsToBasket) {
+            insertBasketEntries(
+                getActiveEventItemIds(eventId).map { itemId ->
+                    LaundryBasketEntryEntity(
+                        itemId = itemId,
+                        addedAt = updatedAt,
+                        reason = "event-confirmation:$eventId",
+                        comment = null,
+                    )
+                },
+            )
+        }
+        return confirmed
+    }
 
     @Query(
         "UPDATE future_events SET lifecycleStatus = 'COMPLETED', updatedAt = :updatedAt " +

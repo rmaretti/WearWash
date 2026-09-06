@@ -337,6 +337,43 @@ class CoreCareCycleE2ETest {
     }
 
     @Test
+    fun `event confirmation adds a clean item out of cycle while direct add stays guarded`() = runTest {
+        val now = "2026-07-25T10:00:00-03:00"
+        val itemId = repository.saveItem(testItem(now))
+        repository.addToBasket(
+            LaundryBasketEntryEntity(
+                itemId = itemId,
+                addedAt = now,
+                reason = "manual",
+                comment = null,
+            ),
+        )
+        assertTrue(repository.observeBasketItemIds().first().isEmpty())
+
+        val eventId = repository.saveFutureEvent(
+            FutureEventEntity(
+                name = "Dinner",
+                eventDate = "2026-07-28",
+                description = null,
+                reminderDaysBefore = 1,
+                createdAt = now,
+                updatedAt = now,
+            ),
+            setOf(itemId),
+        )
+
+        assertTrue(
+            repository.confirmFutureEvent(
+                eventId = eventId,
+                today = LocalDate.parse("2026-07-25"),
+                updatedAt = now,
+                addEventItemsToBasket = true,
+            ),
+        )
+        assertEquals(listOf(itemId), repository.observeBasketItemIds().first())
+    }
+
+    @Test
     fun `event lifecycle confirms only in window and reconciles expired outcomes`() = runTest {
         val now = "2026-07-25T10:00:00-03:00"
         val itemId = repository.saveItem(testItem(now))

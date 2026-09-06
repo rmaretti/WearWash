@@ -25,7 +25,12 @@ interface ItemRepository {
     suspend fun saveFutureEvent(event: FutureEventEntity, itemIds: Set<Long>): Long = 0
     suspend fun deleteFutureEvent(eventId: Long) = Unit
     suspend fun deleteOpenFutureEvent(eventId: Long, today: LocalDate): Boolean = false
-    suspend fun confirmFutureEvent(eventId: Long, today: LocalDate, updatedAt: String): Boolean = false
+    suspend fun confirmFutureEvent(
+        eventId: Long,
+        today: LocalDate,
+        updatedAt: String,
+        addEventItemsToBasket: Boolean = false,
+    ): Boolean = false
     suspend fun reconcileFutureEventStatuses(today: LocalDate, updatedAt: String) = Unit
     fun observeActiveItems(): Flow<List<WashableItemEntity>>
     fun searchItems(query: String): Flow<List<WashableItemEntity>>
@@ -120,12 +125,17 @@ class RoomItemRepository(
         eventId: Long,
         today: LocalDate,
         updatedAt: String,
+        addEventItemsToBasket: Boolean,
     ): Boolean {
         val event = futureEventDao.getEvent(eventId) ?: return false
         val eventDate = runCatching { LocalDate.parse(event.eventDate) }.getOrNull() ?: return false
         val daysUntilEvent = java.time.temporal.ChronoUnit.DAYS.between(today, eventDate)
         if (daysUntilEvent !in 0L..3L) return false
-        return futureEventDao.confirmPendingEvent(eventId, updatedAt) == 1
+        return futureEventDao.confirmPendingEvent(
+            eventId = eventId,
+            updatedAt = updatedAt,
+            addEventItemsToBasket = addEventItemsToBasket,
+        )
     }
 
     override suspend fun reconcileFutureEventStatuses(today: LocalDate, updatedAt: String) {
