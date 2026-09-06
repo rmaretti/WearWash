@@ -130,14 +130,10 @@ class CoreCareCycleUiE2ETest {
     }
 
     @Test(timeout = 60_000)
-    fun `user searches event clothes and adds them to the regular basket`() {
+    fun `user confirms event and adds clean clothes for an out of cycle wash`() {
         val repository = UiTestItemRepository(
             initialItems = listOf(
-                uiTestItem(1, "Blue shirt").copy(
-                    usesSinceWash = 3,
-                    lifetimeUses = 3,
-                    status = "Worn",
-                ),
+                uiTestItem(1, "Blue shirt"),
                 uiTestItem(2, "Red trousers"),
             ),
         )
@@ -181,11 +177,12 @@ class CoreCareCycleUiE2ETest {
     }
 
     @Test(timeout = 60_000)
-    fun `confirmation explains when no event items need washing and leaves basket unchanged`() {
+    fun `confirmation explains when all event items are already in basket`() {
         val repository = UiTestItemRepository(
             initialItems = listOf(
                 uiTestItem(1, "Blue shirt"),
             ),
+            initialBasketIds = listOf(1L),
         )
         val viewModel = ItemsViewModel(repository)
         composeRule.setContent {
@@ -215,7 +212,7 @@ class CoreCareCycleUiE2ETest {
             viewModel.uiState.value.events.single().lifecycleStatus ==
                 FutureEventStatus.CONFIRMED
         }
-        assertEquals(emptyList<Long>(), repository.currentBasketIds)
+        assertEquals(listOf(1L), repository.currentBasketIds)
         assertEquals(
             0,
             composeRule.onAllNodesWithTag("event-item-select-1-1").fetchSemanticsNodes().size,
@@ -520,6 +517,7 @@ private class UiTestItemRepository(
         eventId: Long,
         today: LocalDate,
         updatedAt: String,
+        addEventItemsToBasket: Boolean,
     ): Boolean {
         val event = futureEvents.value.firstOrNull { it.id == eventId } ?: return false
         val daysUntilEvent = java.time.temporal.ChronoUnit.DAYS.between(
@@ -538,6 +536,15 @@ private class UiTestItemRepository(
             } else {
                 it
             }
+        }
+        if (addEventItemsToBasket) {
+            val eventItemIds = futureEventItems.value
+                .filter { it.eventId == eventId }
+                .mapTo(mutableSetOf()) { it.itemId }
+            val activeItemIds = items.value
+                .filter { it.id in eventItemIds && it.archivedAt == null }
+                .map { it.id }
+            basketIds.value = (basketIds.value + activeItemIds).distinct()
         }
         return true
     }

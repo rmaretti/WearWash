@@ -761,17 +761,12 @@ class ItemsViewModel(
         val event = uiState.value.events.firstOrNull { it.id == eventId } ?: return
         if (!event.confirmationDue || event.isPast) return
         viewModelScope.launch {
-            val confirmed = itemRepository.confirmFutureEvent(
+            itemRepository.confirmFutureEvent(
                 eventId = eventId,
                 today = today.value,
                 updatedAt = OffsetDateTime.now().toString(),
+                addEventItemsToBasket = addEligibleItemsToBasket,
             )
-            if (confirmed && addEligibleItemsToBasket) {
-                val eligibleIds = event.items
-                    .filter { it.needsWashing && !it.inBasket }
-                    .mapTo(mutableSetOf()) { it.id }
-                addItemsToBasketNow(eligibleIds, "event-confirmation:$eventId")
-            }
         }
     }
 

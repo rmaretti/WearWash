@@ -717,7 +717,7 @@ private fun EventConfirmationDialog(
     onDismiss: () -> Unit,
     onConfirm: (Boolean) -> Unit,
 ) {
-    val eligibleItemCount = event.items.count { it.needsWashing && !it.inBasket }
+    val eligibleItemCount = event.items.count { !it.inBasket }
     val canAddItemsToBasket = eligibleItemCount > 0
     var addEligibleItems by remember(event.id) { mutableStateOf(false) }
     AlertDialog(
