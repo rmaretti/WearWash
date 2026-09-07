@@ -197,6 +197,59 @@ class CoreCareCycleDeviceTest {
     }
 
     @Test
+    fun editingItemPreservesUsageHistoryOnDevice() {
+        val itemName = "History edit shirt"
+        clickAction(R.string.add_item)
+        assertTrue(device.wait(Until.hasObject(By.text(text(R.string.item_name))), TIMEOUT))
+        val nameField = device.findObject(
+            UiSelector().className("android.widget.EditText").instance(0),
+        )
+        nameField.click()
+        nameField.setText(itemName)
+        device.pressBack()
+        clickAction(R.string.save)
+        assertTrue(device.wait(Until.hasObject(By.text(itemName)), TIMEOUT))
+
+        runBlocking {
+            val itemId = repository.observeActiveItems().first { it.size == 1 }.single().id
+            repository.recordUsage(
+                itemId = itemId,
+                usedAt = LocalDate.now().toString(),
+                notes = "Before edit",
+                createdAt = OffsetDateTime.now().toString(),
+            )
+            withTimeout(TIMEOUT) {
+                repository.observeUsageEvents(itemId).first { it.size == 1 }
+            }
+        }
+
+        val openDetails = device.wait(
+            Until.findObject(By.desc(app.getString(R.string.open_item_details, itemName))),
+            TIMEOUT,
+        )
+        checkNotNull(openDetails) { "No item-details action for '$itemName'" }
+        openDetails.click()
+        clickAction(R.string.edit_item)
+        val editNameField = device.findObject(
+            UiSelector().className("android.widget.EditText").instance(0),
+        )
+        editNameField.click()
+        editNameField.setText("Edited history shirt")
+        device.pressBack()
+        clickAction(R.string.save)
+
+        runBlocking {
+            val editedItem = withTimeout(TIMEOUT) {
+                repository.observeActiveItems().first { items ->
+                    items.singleOrNull()?.name == "Edited history shirt"
+                }.single()
+            }
+            val history = repository.observeUsageEvents(editedItem.id).first()
+            assertTrue(history.singleOrNull()?.notes == "Before edit")
+        }
+    }
+
+    @Test
     fun sameDayEventIsNeverHistoricalAndDeletionClearsEveryView() {
         clickAction(R.string.add_item)
         assertTrue(device.wait(Until.hasObject(By.text(text(R.string.item_name))), TIMEOUT))
