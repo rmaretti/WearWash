@@ -45,6 +45,35 @@ class CoreCareCycleUiE2ETest {
     val composeRule = createComposeRule()
 
     @Test(timeout = 60_000)
+    fun `item details offer only the complete usage registration flow`() {
+        val repository = UiTestItemRepository(
+            initialItems = listOf(uiTestItem(1, "Gym shirt")),
+        )
+        val viewModel = ItemsViewModel(repository)
+        composeRule.setContent {
+            WearWashTheme {
+                ItemsScreen(itemRepository = repository, viewModel = viewModel)
+            }
+        }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            viewModel.uiState.value.allItems.size == 1
+        }
+        viewModel.openItemDetail(1)
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            viewModel.uiState.value.detail != null
+        }
+
+        assertEquals(
+            0,
+            composeRule.onAllNodesWithText("Used today").fetchSemanticsNodes().size,
+        )
+        composeRule.onNodeWithTag("item-detail-content")
+            .performScrollToNode(hasTestTag("record-usage"))
+        composeRule.onNodeWithTag("record-usage").assertIsDisplayed()
+    }
+
+    @Test(timeout = 60_000)
     fun `user completes register use basket and wash journey`() {
         val repository = UiTestItemRepository()
         val viewModel = ItemsViewModel(repository)

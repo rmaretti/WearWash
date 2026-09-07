@@ -191,7 +191,6 @@ fun ItemsScreen(
         ItemDetailDialog(
             detail = detail,
             onDismiss = viewModel::closeItemDetail,
-            onUsedToday = { viewModel.markItemUsed(detail.item.id) },
             onRecordUsage = { date, notes -> viewModel.recordUsage(detail.item.id, date, notes) },
             onDeleteUsage = viewModel::deleteUsageEvent,
             onAddToBasket = { viewModel.addToBasket(detail.item.id, "manual") },
@@ -1319,7 +1318,6 @@ private fun EmptyBasketMessage() {
 private fun ItemDetailDialog(
     detail: ItemDetailUiModel,
     onDismiss: () -> Unit,
-    onUsedToday: () -> Unit,
     onRecordUsage: (String, String?) -> Unit,
     onDeleteUsage: (Long) -> Unit,
     onAddToBasket: () -> Unit,
@@ -1335,7 +1333,9 @@ private fun ItemDetailDialog(
         title = { Text(detail.item.name) },
         text = {
             LazyColumn(
-                modifier = Modifier.heightIn(max = 540.dp),
+                modifier = Modifier
+                    .heightIn(max = 540.dp)
+                    .testTag("item-detail-content"),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 item { StatusBadges(detail.item) }
@@ -1354,7 +1354,6 @@ private fun ItemDetailDialog(
                 }
                 item {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        AssistChip(onClick = onUsedToday, label = { Text(stringResource(R.string.used_today)) })
                         if (detail.item.inBasket || detail.item.needsWashing) {
                             AssistChip(
                                 onClick = if (detail.item.inBasket) onRemoveFromBasket else onAddToBasket,
@@ -1398,6 +1397,7 @@ private fun ItemDetailDialog(
                             onRecordUsage(usageDate, usageNotes)
                             usageNotes = ""
                         },
+                        modifier = Modifier.testTag("record-usage"),
                         enabled = runCatching { LocalDate.parse(usageDate) }
                             .getOrNull()
                             ?.let { !it.isAfter(LocalDate.now()) } == true,
