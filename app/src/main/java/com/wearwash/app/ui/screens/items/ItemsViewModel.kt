@@ -530,7 +530,17 @@ class ItemsViewModel(
         if (!form.isValid(today.value)) return
         viewModelScope.launch {
             val existingItem = form.id.takeIf { it != 0L }?.let { itemRepository.getItem(it) }
-            val savedItemId = itemRepository.saveItem(form.toEntity(existingItem))
+            val now = OffsetDateTime.now().toString()
+            val savedItemId = if (existingItem == null) {
+                itemRepository.saveNewItemWithPreviousWears(
+                    item = form.toEntity(existingItem),
+                    previousWearCount = form.initialUsageCount.toNonNegativeInt(),
+                    usedAt = today.value.minusDays(1).toString(),
+                    createdAt = now,
+                )
+            } else {
+                itemRepository.saveItem(form.toEntity(existingItem))
+            }
             closeEditor()
             if (existingItem != null) openItemDetail(savedItemId)
         }

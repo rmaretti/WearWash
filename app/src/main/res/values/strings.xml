@@ -50,6 +50,8 @@
     <string name="purchase_price">Purchase price</string>
     <string name="description">Description</string>
     <string name="initial_usage_count">Initial uses</string>
+    <string name="previous_wears">Previous wears</string>
+    <string name="previous_wears_hint">Uses before adding this item; each is recorded as yesterday.</string>
     <string name="initial_washing_count">Initial washes</string>
     <string name="last_washing_date">Last washing date (YYYY-MM-DD)</string>
     <string name="washing_criteria">Washing criteria</string>

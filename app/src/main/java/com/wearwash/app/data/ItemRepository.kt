@@ -41,6 +41,25 @@ interface ItemRepository {
     fun observeBasketItems(): Flow<List<WashableItemEntity>>
     suspend fun getItem(id: Long): WashableItemEntity?
     suspend fun saveItem(item: WashableItemEntity): Long
+    suspend fun saveNewItemWithPreviousWears(
+        item: WashableItemEntity,
+        previousWearCount: Int,
+        usedAt: String,
+        createdAt: String,
+    ): Long {
+        val itemId = saveItem(
+            item.copy(
+                id = 0,
+                usesSinceWash = 0,
+                lifetimeUses = 0,
+                status = "Clean",
+            ),
+        )
+        repeat(previousWearCount.coerceAtLeast(0)) {
+            recordUsage(itemId, usedAt, null, createdAt)
+        }
+        return itemId
+    }
     suspend fun updateItem(item: WashableItemEntity)
     suspend fun recordUsage(itemId: Long, usedAt: String, notes: String?, createdAt: String)
     suspend fun deleteUsageEvent(eventId: Long, updatedAt: String)
@@ -172,6 +191,18 @@ class RoomItemRepository(
 
     override suspend fun saveItem(item: WashableItemEntity): Long =
         washableItemDao.upsert(item)
+
+    override suspend fun saveNewItemWithPreviousWears(
+        item: WashableItemEntity,
+        previousWearCount: Int,
+        usedAt: String,
+        createdAt: String,
+    ): Long = washableItemDao.insertNewItemWithPreviousWears(
+        item = item,
+        previousWearCount = previousWearCount,
+        usedAt = usedAt,
+        createdAt = createdAt,
+    )
 
     override suspend fun updateItem(item: WashableItemEntity) {
         washableItemDao.update(item)
