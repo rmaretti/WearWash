@@ -117,6 +117,32 @@ interface WashableItemDao {
     }
 
     @Transaction
+    suspend fun insertNewItemWithPreviousWears(
+        item: WashableItemEntity,
+        previousWearCount: Int,
+        usedAt: String,
+        createdAt: String,
+    ): Long {
+        val itemId = upsert(
+            item.copy(
+                id = 0,
+                usesSinceWash = 0,
+                lifetimeUses = 0,
+                status = "Clean",
+            ),
+        )
+        repeat(previousWearCount.coerceAtLeast(0)) {
+            recordUsage(
+                itemId = itemId,
+                usedAt = usedAt,
+                notes = null,
+                createdAt = createdAt,
+            )
+        }
+        return itemId
+    }
+
+    @Transaction
     suspend fun addToBasket(entry: LaundryBasketEntryEntity) {
         insertBasketEntry(entry)
     }

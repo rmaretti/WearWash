@@ -1847,6 +1847,19 @@ private fun ItemEditorDialog(
                     }
                 }
                 item { WashingThresholdFields(form, onFormChange) }
+                if (form.id == 0L) {
+                    item {
+                        FormTextField(
+                            form.initialUsageCount,
+                            { onFormChange(form.copy(initialUsageCount = it)) },
+                            stringResource(R.string.previous_wears),
+                            keyboardType = KeyboardType.Number,
+                            testTag = "previous-wears",
+                            isError = form.initialUsageCount.toIntOrNull()?.let { it >= 0 } != true,
+                            supportingText = stringResource(R.string.previous_wears_hint),
+                        )
+                    }
+                }
                 item {
                     TextButton(onClick = { onFormChange(form.copy(showAdvancedDetails = !form.showAdvancedDetails)) }) {
                         Text(stringResource(if (form.showAdvancedDetails) R.string.less_details else R.string.more_details))

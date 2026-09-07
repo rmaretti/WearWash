@@ -106,6 +106,37 @@ class CoreCareCycleE2ETest {
     }
 
     @Test
+    fun `new item records previous wears as yesterday and continues usage count`() = runTest {
+        val createdAt = "2026-09-07T10:00:00-03:00"
+        val itemId = repository.saveNewItemWithPreviousWears(
+            item = testItem(createdAt),
+            previousWearCount = 3,
+            usedAt = "2026-09-06",
+            createdAt = createdAt,
+        )
+
+        val seededItem = repository.getItem(itemId)!!
+        assertEquals(3, seededItem.usesSinceWash)
+        assertEquals(3, seededItem.lifetimeUses)
+        assertEquals(WashableItemStatus.Worn.name, seededItem.status)
+        val seededEvents = repository.observeUsageEvents(itemId).first()
+        assertEquals(3, seededEvents.size)
+        assertTrue(seededEvents.all { it.usedAt == "2026-09-06" })
+
+        repository.recordUsage(
+            itemId = itemId,
+            usedAt = "2026-09-07",
+            notes = null,
+            createdAt = "2026-09-07T11:00:00-03:00",
+        )
+
+        val continuedItem = repository.getItem(itemId)!!
+        assertEquals(4, continuedItem.usesSinceWash)
+        assertEquals(4, continuedItem.lifetimeUses)
+        assertEquals(4, repository.observeUsageEvents(itemId).first().size)
+    }
+
+    @Test
     fun `deleting a usage corrects counters without removing history before latest wash`() = runTest {
         val itemId = repository.saveItem(
             testItem("2026-07-23T08:00:00-03:00").copy(
