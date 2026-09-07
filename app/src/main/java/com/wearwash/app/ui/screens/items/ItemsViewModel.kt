@@ -539,7 +539,8 @@ class ItemsViewModel(
                     createdAt = now,
                 )
             } else {
-                itemRepository.saveItem(form.toEntity(existingItem))
+                itemRepository.updateItem(form.toEntity(existingItem))
+                existingItem.id
             }
             closeEditor()
             if (existingItem != null) openItemDetail(savedItemId)

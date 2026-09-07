@@ -137,6 +137,31 @@ class CoreCareCycleE2ETest {
     }
 
     @Test
+    fun `updating item metadata preserves usage history`() = runTest {
+        val createdAt = "2026-09-07T10:00:00-03:00"
+        val itemId = repository.saveItem(testItem(createdAt))
+        repository.recordUsage(
+            itemId = itemId,
+            usedAt = "2026-09-07",
+            notes = "Before edit",
+            createdAt = "2026-09-07T11:00:00-03:00",
+        )
+
+        val item = repository.getItem(itemId)!!
+        repository.updateItem(
+            item.copy(
+                name = "Edited shirt",
+                updatedAt = "2026-09-07T12:00:00-03:00",
+            ),
+        )
+
+        assertEquals("Edited shirt", repository.getItem(itemId)!!.name)
+        val history = repository.observeUsageEvents(itemId).first()
+        assertEquals(1, history.size)
+        assertEquals("Before edit", history.single().notes)
+    }
+
+    @Test
     fun `deleting a usage corrects counters without removing history before latest wash`() = runTest {
         val itemId = repository.saveItem(
             testItem("2026-07-23T08:00:00-03:00").copy(
