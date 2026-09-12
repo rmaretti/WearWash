@@ -37,6 +37,7 @@ import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -54,7 +55,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
@@ -381,7 +381,7 @@ private fun ItemsContent(uiState: ItemsUiState, viewModel: ItemsViewModel) {
         if (selectedItems.isNotEmpty()) {
             item {
                 Surface(
-                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    color = MaterialTheme.colorScheme.secondaryContainer,
                     shape = RoundedCornerShape(18.dp),
                 ) {
                     Row(
@@ -513,12 +513,11 @@ private fun EventsContent(uiState: ItemsUiState, viewModel: ItemsViewModel) {
         )
     }
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        OutlinedButton(
+        SecondaryActionButton(
             onClick = if (isHistory) viewModel::showOpenEvents else viewModel::showEventHistory,
+            label = stringResource(if (isHistory) R.string.open_events else R.string.event_history),
             modifier = Modifier.testTag(if (isHistory) "open-events" else "event-history"),
-        ) {
-            Text(stringResource(if (isHistory) R.string.open_events else R.string.event_history))
-        }
+        )
         if (!isHistory) {
             PrimaryIconAction(
                 icon = Icons.Default.Add,
@@ -530,7 +529,7 @@ private fun EventsContent(uiState: ItemsUiState, viewModel: ItemsViewModel) {
     }
     if (dueEvents.isNotEmpty()) {
         Surface(
-            color = MaterialTheme.colorScheme.primaryContainer,
+            color = MaterialTheme.colorScheme.secondaryContainer,
             shape = RoundedCornerShape(18.dp),
             modifier = Modifier.testTag("event-reminder"),
         ) {
@@ -613,6 +612,24 @@ private fun PrimaryIconAction(
 }
 
 @Composable
+private fun SecondaryActionButton(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Button(
+        onClick = onClick,
+        modifier = modifier,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.tertiary,
+            contentColor = MaterialTheme.colorScheme.onTertiary,
+        ),
+    ) {
+        Text(label)
+    }
+}
+
+@Composable
 private fun FutureEventCard(
     event: FutureEventUiModel,
     onEdit: () -> Unit,
@@ -623,6 +640,10 @@ private fun FutureEventCard(
         modifier = Modifier
             .fillMaxWidth()
             .testTag("event-card-${event.id}"),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        ),
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -685,7 +706,7 @@ private fun FutureEventCard(
             } else {
                 event.items.forEach { item ->
                     Surface(
-                        color = MaterialTheme.colorScheme.primaryContainer,
+                        color = MaterialTheme.colorScheme.surface,
                         shape = RoundedCornerShape(14.dp),
                     ) {
                         Row(
@@ -939,7 +960,7 @@ private fun BasketContent(uiState: ItemsUiState, viewModel: ItemsViewModel) {
     }
     if (uiState.basketItems.isNotEmpty()) {
         Surface(
-            color = MaterialTheme.colorScheme.primaryContainer,
+            color = MaterialTheme.colorScheme.secondaryContainer,
             shape = RoundedCornerShape(20.dp),
         ) {
             Column(
@@ -976,12 +997,11 @@ private fun BasketContent(uiState: ItemsUiState, viewModel: ItemsViewModel) {
                     ) {
                         Text(stringResource(R.string.wash_selected))
                     }
-                    OutlinedButton(
+                    SecondaryActionButton(
                         onClick = { viewModel.openWashDialog(allIds) },
+                        label = stringResource(R.string.wash_all),
                         modifier = Modifier.weight(1f),
-                    ) {
-                        Text(stringResource(R.string.wash_all))
-                    }
+                    )
                 }
             }
         }
@@ -1056,7 +1076,12 @@ private fun BasketContent(uiState: ItemsUiState, viewModel: ItemsViewModel) {
             item { EmptyBasketMessage() }
         }
         items(uiState.suggestedItems, key = { "suggested-${it.id}" }) { item ->
-            ElevatedCard {
+            ElevatedCard(
+                colors = CardDefaults.elevatedCardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                ),
+            ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1161,7 +1186,12 @@ private fun BasketItemCard(
     onOpen: () -> Unit,
     onRemove: () -> Unit,
 ) {
-    ElevatedCard {
+    ElevatedCard(
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        ),
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
